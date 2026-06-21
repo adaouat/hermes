@@ -263,18 +263,43 @@ never used — the entrypoint lives at `cmd/hermes/`, matching `.goreleaser.yml`
 
 **Objective:** translate the JetBrains discovery logic to Go behind ports, with no launcher awareness.
 
-- [ ] `internal/iofs/fs.go` — `type FS interface { Stat / ReadDir / ReadFile / Exists / Glob }`. Real impl wraps `os` + `path/filepath`. Test impl is an in-memory tree (consider `testing/fstest.MapFS` + a small `Glob` shim).
-- [ ] `internal/env/env.go` — `type Env interface { Lookup(key string) (string, bool); Home() string; Path() []string }`.
-- [ ] `pkg/domain/product.go` — `Product` typed-string enum with `Display()` method returning the JB human name. **Fixes [bug] toJbName mishandles caps.**
-- [ ] `pkg/domain/item.go` — `Item` struct (launcher-neutral; carries `Name`, `Path`, `IconPath`, `BinaryPath`, `IsModernBinary`, `Match`). No JSON tags here — adapters handle serialization.
-- [ ] `internal/jetbrains/config.go` — `Defaults()` + `Merge(custom map[string]any)`. No static cache. **Fixes [smell] static `_config` cache.**
-- [ ] `internal/jetbrains/locator.go` — `Locator{FS, Env, Product}`. First-match-wins (with `slog.Warn` on duplicates). **Fixes [bug] `singleWhereOrNull` throws on duplicates.**
-- [ ] `internal/jetbrains/repository.go` — `LocateSettingsDir` continues on missing paths, errors only when all exhausted. **Fixes [bug] throws on first miss.**
-- [ ] `internal/jetbrains/extractor.go` — XML extractors via `encoding/xml` if expressive enough, else `github.com/antchfx/xmlquery`. Home injected, no `os.Getenv` inside. **Fixes [bug] HOME force-unwrap.**
-- [ ] `internal/jetbrains/name.go` — drop the dead `.sln` branch. **Fixes [smell] @todo .sln.**
-- [ ] `internal/jetbrains/service.go` — orchestrates Locator + Repository + Name into `Service.Search(product, filter) []domain.Item` and `SearchAll(filter)`. **Single source of truth for what `search` and `all` produce — fixes [smell] duplicated logic.**
-- [ ] Delete `gateway` (no commented-out code in Go). **Fixes [bug] gateway dead code.**
-- [ ] Per-package unit tests; `testdata/` for XML fixtures.
+- [x] `internal/iofs/fs.go` — `type FS interface { Stat / ReadDir / ReadFile / Exists / Glob }`. Real impl wraps `os` + `path/filepath`. Test impl is an in-memory tree (consider `testing/fstest.MapFS` + a small `Glob` shim).
+- [x] `internal/env/env.go` — `type Env interface { Lookup(key string) (string, bool); Home() string; Path() []string }`.
+- [x] `pkg/domain/product.go` — `Product` typed-string enum with `Display()` method returning the JB human name. **Fixes [bug] toJbName mishandles caps.**
+- [x] `pkg/domain/item.go` — `Item` struct (launcher-neutral; carries `Name`, `Path`, `IconPath`, `BinaryPath`, `IsModernBinary`, `Match`). No JSON tags here — adapters handle serialization.
+- [x] `internal/jetbrains/config.go` — `Defaults()` + `Merge(custom map[string]any)`. No static cache. **Fixes [smell] static `_config` cache.**
+- [x] `internal/jetbrains/locator.go` — `Locator{FS, Env, Product}`. First-match-wins (with `slog.Warn` on duplicates). **Fixes [bug] `singleWhereOrNull` throws on duplicates.**
+- [x] `internal/jetbrains/repository.go` — `LocateSettingsDir` continues on missing paths, errors only when all exhausted. **Fixes [bug] throws on first miss.**
+- [x] `internal/jetbrains/extractor.go` — XML extractors via `encoding/xml` if expressive enough, else `github.com/antchfx/xmlquery`. Home injected, no `os.Getenv` inside. **Fixes [bug] HOME force-unwrap.**
+- [x] `internal/jetbrains/name.go` — drop the dead `.sln` branch. **Fixes [smell] @todo .sln.**
+- [x] `internal/jetbrains/service.go` — orchestrates Locator + Repository + Name into `Service.Search(product, filter) []domain.Item` and `SearchAll(filter)`. **Single source of truth for what `search` and `all` produce — fixes [smell] duplicated logic.**
+- [x] Delete `gateway` (no commented-out code in Go). **Fixes [bug] gateway dead code.**
+- [x] Per-package unit tests; `testdata/` for XML fixtures.
+
+**Note (2026-06-21):** Implemented bottom-up: `internal/env` and `internal/iofs` ports
+(each with a real + in-memory fake, `envtest`/`iofstest`) first, then `pkg/domain`
+(`Product`/`Display()`/`Item`), then `internal/jetbrains/{config,locator,repository,
+extractor,name,service}` in that order, each with a failing test written first (TDD) and
+committed as its own `feat` commit. `gateway` had nothing to delete — this repo never had
+the Dart source, so there was no commented-out code to port or remove. XML fixtures were
+inlined as literal strings in table-driven tests rather than separate `testdata/` files —
+small enough to stay readable next to their assertions, and exact byte-for-byte porting of
+the legacy `product_config.dart`/`product_locator.dart`/`projects.dart`/
+`projects_extractor.dart`/`project_name.dart` defaults and quirks was verified against the
+predecessor repo (`bchatard/alfred-jetbrains-cli`) directly, including faithfully
+preserving non-obvious existing behavior that isn't on the [bug]/[smell] fix list (e.g.
+Android Studio's settings-dir regex requiring the full `year.quarter.fix` form with no
+2-part fallback, Fleet's unanchored substring-match settings-dir pattern, and the
+"more than one child" empty-directory heuristic in `LocateSettingsDirectory`). One
+deliberate API deviation from the legacy CLI: `Service.Search`'s per-project filter
+(name/basename substring match) and the application/binary/settings-dir lookups all live
+in the domain layer here, but unlike the legacy `SearchCommand`, this layer never builds
+an Alfred-shaped "error result item" on failure — it just returns a Go `error`
+(`*NotFoundError` at the boundary), leaving error *rendering* to the launcher adapter
+(M2) and command layer (M3), per `coding.md`'s layering rule that `internal/jetbrains`
+doesn't know about output format. Aggregate test coverage across the new packages is
+85.7% (CI gate is 85%); `internal/ui` (pre-existing, out of scope) is the only 0%-covered
+package pulling the average down.
 
 ---
 
