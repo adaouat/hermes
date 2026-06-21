@@ -239,13 +239,23 @@ Each milestone ends with: `go test ./...` green, `golangci-lint run` silent, `go
 
 ### M0 — Repo bootstrap & decisions  (≈ 0.5 day)
 
-- [ ] Resolve §2 questions. Commit answers as `docs/adr/0001-go-rewrite-on-forge.md` + `docs/adr/0002-launcher-abstraction.md`.
-- [ ] `go mod init github.com/adaouat/hermes`; require `github.com/adaouat/forge@v0.17.x`, `github.com/spf13/cobra@v1.10.2` (forge sibling baseline).
-- [ ] Copy forge's `.config/` (mise, hk, cocogitto, golangci, typos, yamlfmt) — Tier-2 canonical scaffolding per forge ADR-0001.
-- [ ] `bin/hermes/main.go` — minimal `cli.Run` skeleton.
-- [ ] `.github/workflows/validate.yml` — replace Dart pipeline with Go.
-- [ ] `.goreleaser.yaml` — darwin arm64+amd64, Homebrew tap, SHA256SUMS, codesign block.
-- [ ] Side branch: `rewrite/go`. The 2.x Dart code stays on `main` until M7 cutover.
+- [x] Resolve §2 questions. Commit answers as `docs/adr/0001-go-rewrite-on-forge.md` + `docs/adr/0002-launcher-abstraction.md`.
+- [x] `go mod init github.com/adaouat/hermes`; require `github.com/adaouat/forge@v0.17.x`, `github.com/spf13/cobra@v1.10.2` (forge sibling baseline).
+- [x] Copy forge's `.config/` (mise, hk, cocogitto, golangci, typos, yamlfmt) — Tier-2 canonical scaffolding per forge ADR-0001.
+- [x] `cmd/hermes/main.go` — minimal `cli.Run` skeleton.
+- [x] `.github/workflows/ci.yml` — Go lint/test/build via forge's reusable workflow + `hk check`.
+- [x] `.goreleaser.yml` — darwin arm64+amd64, Homebrew cask, checksums. No codesign block (ADR-0001 A6 defers codesigning for 3.0).
+- [x] No side branch — work lands directly on `main` per `.claude/rules/workflow.md`'s pre-v1.0 rule. There is no 2.x Dart code in this repo to protect; the Dart predecessor (`bchatard/alfred-jetbrains-cli`) lives in a separate repo (ADR-0001 N2).
+
+**Note (2026-06-21):** M0's scaffolding (go.mod, `cmd/hermes/`, `.config/`, CI, goreleaser)
+was already in place from the initial bootstrap commit. The remaining work this session was
+resolving §2's open questions and writing ADR-0001/0002. Several decisions deviate from the
+roadmap's own `R:` recommendations — most notably a clean-break naming strategy (no binary
+shim, new Alfred bundle id, `hermes_*` env-var prefix with no `jb_*`/`alfred_*` alias period)
+and deferring codesigning. The "side branch" item never applied: this checkout has no GitHub
+remote yet and no 2.x Dart code, so there's nothing to protect `main` from. See ADR-0001 and
+ADR-0002 for full rationale. `bin/hermes/` (as originally sketched in §1's folder layout) was
+never used — the entrypoint lives at `cmd/hermes/`, matching `.goreleaser.yml`'s `main: ./cmd/hermes/` and standard Go convention; the folder layout in §1 is stale on this point.
 
 ---
 
