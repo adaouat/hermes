@@ -1,0 +1,55 @@
+version: 2
+
+project_name: hermes
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: hermes
+    main: ./cmd/hermes/
+    # Plain name so the Homebrew cask installs the binary as `hermes`; the version
+    # lives in the asset name via archives.name_template below.
+    binary: hermes
+    env:
+      - CGO_ENABLED=0
+    # macOS-only: Alfred and Raycast are both macOS-only (see docs/tasks/roadmap.md §7).
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{ .Tag }}
+
+# Raw versioned binaries, no archive wrapper — the family-wide release model.
+# The version lives in the asset name via this explicit name_template (builds.binary
+# is plain); checksums.txt covers the binary users run. See forge
+# docs/guides/distribution.md.
+archives:
+  - id: default
+    formats:
+      - binary
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# release.disable: true — goreleaser is build-only in the CI pipeline (forge ADR-0018).
+# heraut owns GitHub Release creation via `heraut release --version`.
+release:
+  disable: true
+
+# Homebrew cask. goreleaser is build-only (release.disable + --skip=publish), so it only
+# generates the cask — the release workflow pushes it after `heraut release`. The explicit
+# url.template is required because release.disable means goreleaser can't derive the URL.
+homebrew_casks:
+  - repository:
+      owner: adaouat
+      name: homebrew-tap
+    directory: Casks
+    url:
+      template: "https://github.com/adaouat/hermes/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/adaouat/hermes"
+    description: "JetBrains IDE project locator for Alfred, Raycast, and other launchers"

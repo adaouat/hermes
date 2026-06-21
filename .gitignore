@@ -1,0 +1,14 @@
+# Build outputs
+/hermes
+*.test
+/dist
+/coverage.out
+
+# IDE
+/.idea
+
+# Mise
+/.config/mise/config.local.toml
+
+# Claude Code — local-only permissions
+/.claude/settings.local.json

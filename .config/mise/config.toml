@@ -1,0 +1,29 @@
+[settings]
+# Enable mise hooks
+experimental = true
+
+[tools]
+actionlint = "latest"
+cocogitto = "7.0.0"
+git-cliff = "2.13"
+go = "1.26"
+"go:golang.org/x/tools/gopls" = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "latest"
+golangci-lint = "2.12"
+hk = "1.46"
+pkl = "latest"
+tombi = "latest"
+typos = "latest"
+yamlfmt = "latest"
+
+[env]
+HK_FILE = "{{ config_root }}/.config/hk/config.pkl"
+
+# Be careful, shell aliases are only available in your shell, not in tasks or hk
+[shell_alias]
+cog = "cog --config {{ config_root }}/.config/cocogitto/config.toml"
+typos = "typos --config {{ config_root }}/.config/typos/config.toml"
+yamlfmt = "yamlfmt -conf {{ config_root }}/.config/yamlfmt/config.yml"
+
+[hooks]
+postinstall = { task = "setup" }

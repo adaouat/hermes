@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override version (e.g. v1.2.3). Leave empty to use `heraut version next`."
+        required: false
+        default: ""
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.setup.outputs.tag }}
+    permissions:
+      contents: write # create GitHub Release + push tag + upload assets
+      id-token: write # OIDC token for build provenance attestation
+      attestations: write # persist build provenance attestations
+    env:
+      HERMES_CHECK_UPDATE: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0 # full history for changelog generation
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # mise + heraut + GPG + identity + resolved version (forge ADR-0009).
+      - name: Release setup
+        id: setup
+        uses: adaouat/forge/.github/actions/release-setup@66461c2797ae849f135ab34bac2b96484d21128d # v0.7.2
+        with:
+          gpg-private-key: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ inputs.version }}
+
+      - name: Build binaries
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7
+        with:
+          version: "~> v2"
+          args: release --clean --skip=publish,announce,validate
+        env:
+          GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Collect release binaries
+        # builds.binary is plain `hermes`, so the versioned asset names live in
+        # goreleaser's artifacts.json — copy each build output to its versioned name so
+        # `heraut release` can upload them (matches .config/heraut.yml release.assets).
+        run: |
+          jq -r '.[] | select(.type == "Binary" and (.name | startswith("hermes_"))) | "\(.path)\t\(.name)"' \
+            dist/artifacts.json | while IFS=$'\t' read -r path name; do cp "$path" "dist/$name"; done
+
+      - name: Attest build provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - name: Preflight check
+        run: heraut check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Release
+        run: heraut release --version "$VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Publish Homebrew cask
+        # goreleaser is build-only (--skip=publish), so it only generated the cask;
+        # push it to the tap now that `heraut release` has uploaded the assets. Skips
+        # gracefully if the token isn't set, so it never breaks a release.
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |-
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set — skipping cask publish."
+            exit 0
+          fi
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/adaouat/homebrew-tap.git" /tmp/tap
+          install -D dist/homebrew/Casks/hermes.rb /tmp/tap/Casks/hermes.rb
+          cd /tmp/tap
+          git add Casks/hermes.rb
+          git diff --cached --quiet && { echo "cask unchanged"; exit 0; }
+          git commit -m "chore(deps.hermes): ${VERSION}"
+          git push
