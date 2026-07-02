@@ -2,11 +2,14 @@ package alfred
 
 import (
 	"bytes"
-	"os"
+	_ "embed"
 	"testing"
 
 	"github.com/adaouat/hermes/pkg/domain"
 )
+
+//go:embed testdata/search_basic.json
+var goldenSearchBasic []byte
 
 func TestBuildResultItem(t *testing.T) {
 	tests := []struct {
@@ -83,18 +86,13 @@ func TestWriteEnvelope_goldenSearchBasic(t *testing.T) {
 		Match:          "AuroraProject aurora",
 	}
 
-	want, err := os.ReadFile("../../../test/fixtures/alfred/search_basic.json")
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
-
 	var buf bytes.Buffer
 	env := envelope{Cache: cacheInfo{Seconds: 86400, LooseReload: true}, Items: []resultItem{buildResultItem(item)}}
 	if err := writeEnvelope(&buf, env, false); err != nil {
 		t.Fatalf("writeEnvelope(): %v", err)
 	}
 
-	if buf.String() != string(want) {
-		t.Errorf("writeEnvelope() output mismatch:\ngot:  %s\nwant: %s", buf.String(), want)
+	if buf.String() != string(goldenSearchBasic) {
+		t.Errorf("writeEnvelope() output mismatch:\ngot:  %s\nwant: %s", buf.String(), goldenSearchBasic)
 	}
 }
