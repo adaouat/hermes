@@ -307,15 +307,25 @@ package pulling the average down.
 
 **Objective:** define the `Launcher` interface and implement Alfred as the first concrete adapter. Lock the contract before adding Raycast.
 
-- [ ] `internal/launcher/launcher.go` — `Launcher` interface, `InstallOpts`, `Report` (signatures per §1).
-- [ ] `internal/launcher/registry.go` — `Registry` with `Register`, `Get(name)`, `Detect(env)`, `Default()`. Wired in `main`.
-- [ ] `internal/launcher/alfred/adapter.go` — implements `Launcher`. `Detect()` checks `alfred_version`. `Name()` returns `"alfred"`.
-- [ ] `internal/launcher/alfred/render.go` — Script Filter JSON renderer. **Byte-identical to 2.6.2** for the same inputs. `RenderItem` wraps in the same envelope as `RenderItems`. **Fixes [bug] renderItem/renderItems shape mismatch.**
-- [ ] Cache TTL exposed via constructor option, default 86400. **Fixes [smell] hardcoded TTL.**
-- [ ] Debug items (`alfred_debug=1`) appended via copy-on-write, no caller mutation. **Fixes [bug] `_addDebug` mutates caller list.**
+- [x] `internal/launcher/launcher.go` — `Launcher` interface, `InstallOpts`, `Report` (signatures per §1).
+- [x] `internal/launcher/registry.go` — `Registry` with `Register`, `Get(name)`, `Detect(env)`, `Default()`. Wired in `main`.
+- [x] `internal/launcher/alfred/adapter.go` — implements `Launcher`. `Detect()` checks `alfred_version`. `Name()` returns `"alfred"`.
+- [x] `internal/launcher/alfred/render.go` — Script Filter JSON renderer. **Byte-identical to 2.6.2** for the same inputs. `RenderItem` wraps in the same envelope as `RenderItems`. **Fixes [bug] renderItem/renderItems shape mismatch.**
+- [x] Cache TTL exposed via constructor option, default 86400. **Fixes [smell] hardcoded TTL.**
+- [x] Debug items (`alfred_debug=1`) appended via copy-on-write, no caller mutation. **Fixes [bug] `_addDebug` mutates caller list.**
 - [ ] Skeleton `internal/launcher/alfred/installer.go` + `assets/info.plist.tmpl` (template ready, no `Install` impl yet — that's M4).
 - [ ] `internal/launcher/generic/adapter.go` — emits launcher-neutral JSON (`[]domain.Item`). Used by tests, the future Raycast TS extension, and curious users (`hermes search --product phpStorm --launcher generic`).
 - [ ] Golden test: Alfred JSON output for a fixture domain.Item, asserted against a 2.6.2-captured baseline.
+
+**Note (2026-07-03):** Tasks 1–4 of the M2 SDD plan are complete. `launcher.go` and `registry.go`
+were implemented and tested as discrete packages (Tasks 1–2). `alfred/render.go` (Task 3) defines
+the private `resultItem`, `envelope`, `cacheInfo` types and `buildResultItem`/`writeEnvelope`
+functions, with a golden fixture test at `internal/launcher/alfred/testdata/search_basic.json` that
+asserts byte-identity against the 2.6.2 Dart output. `alfred/adapter.go` (Task 4) wires `Detect`,
+`Render`, `Name`, `Install`, `Verify` (last two return `ErrInstallNotImplemented` pending M4).
+`iconNote`/`iconClock` constants live in `adapter.go` where they're consumed rather than
+`render.go`, where they'd be unused. The three remaining M2 items (installer skeleton, generic
+adapter, golden parity test) follow in subsequent tasks.
 
 ---
 
