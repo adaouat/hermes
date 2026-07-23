@@ -308,7 +308,7 @@ package pulling the average down.
 **Objective:** define the `Launcher` interface and implement Alfred as the first concrete adapter. Lock the contract before adding Raycast.
 
 - [x] `internal/launcher/launcher.go` — `Launcher` interface, `InstallOpts`, `Report` (signatures per §1).
-- [x] `internal/launcher/registry.go` — `Registry` with `Register`, `Get(name)`, `Detect(env)`, `Default()`. Wired in `main`.
+- [x] `internal/launcher/registry.go` — `Registry` with `Register`, `Get(name)`, `Detect(env)`, `Default()`. (Wiring in `main` deferred to M3.)
 - [x] `internal/launcher/alfred/adapter.go` — implements `Launcher`. `Detect()` checks `alfred_version`. `Name()` returns `"alfred"`.
 - [x] `internal/launcher/alfred/render.go` — Script Filter JSON renderer. **Byte-identical to 2.6.2** for the same inputs. `RenderItem` wraps in the same envelope as `RenderItems`. **Fixes [bug] renderItem/renderItems shape mismatch.**
 - [x] Cache TTL exposed via constructor option, default 86400. **Fixes [smell] hardcoded TTL.**
