@@ -105,6 +105,36 @@ func TestAdapter_Render_appendsDebugItemsWithoutMutatingCaller(t *testing.T) {
 	}
 }
 
+func TestAdapter_Render_debugItemsWithEmptyVersion(t *testing.T) {
+	fixed := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
+	a := NewAdapter(
+		envtest.New(map[string]string{"alfred_debug": "1"}),
+		WithClock(func() time.Time { return fixed }),
+		// WithVersion not called — version is empty string by default
+	)
+
+	items := []domain.Item{{Name: "p", Path: "/x/p", IconPath: "/a.app", BinaryPath: "/a.app/Contents/MacOS/p", Match: "p p"}}
+
+	var buf bytes.Buffer
+	if err := a.Render(items, &buf); err != nil {
+		t.Fatalf("Render(): %v", err)
+	}
+
+	var got envelope
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal output: %v", err)
+	}
+	if len(got.Items) != 3 {
+		t.Fatalf("Items = %d, want 3 (1 project + 2 debug)", len(got.Items))
+	}
+	if got.Items[1].Title != "Debug: CLI version unknown" {
+		t.Errorf("Items[1].Title = %q, want %q", got.Items[1].Title, "Debug: CLI version unknown")
+	}
+	if got.Items[1].Subtitle != "unknown" {
+		t.Errorf("Items[1].Subtitle = %q, want %q", got.Items[1].Subtitle, "unknown")
+	}
+}
+
 func TestAdapter_Render_noDebugItemsWithoutDebugEnv(t *testing.T) {
 	a := NewAdapter(envtest.New(nil))
 	items := []domain.Item{{Name: "p", Path: "/x/p", IconPath: "/a.app", BinaryPath: "/a.app/Contents/MacOS/p", Match: "p p"}}

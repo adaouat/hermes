@@ -89,11 +89,11 @@ func (a *Adapter) Render(items []domain.Item, w io.Writer) error {
 		results = append(results, a.debugItems(start)...)
 	}
 
-	env := envelope{
+	ef := envelope{
 		Cache: cacheInfo{Seconds: a.ttlSeconds, LooseReload: true},
 		Items: results,
 	}
-	if err := writeEnvelope(w, env, debug); err != nil {
+	if err := writeEnvelope(w, ef, debug); err != nil {
 		return fmt.Errorf("rendering alfred output: %w", err)
 	}
 	return nil
@@ -110,7 +110,11 @@ func (a *Adapter) debugMode() bool {
 // legacy item ("Debug: Log <file>") is deferred to M3, which is what sets up
 // the slog file handler this item would point at.
 func (a *Adapter) debugItems(start time.Time) []resultItem {
-	version := buildResultItem(debugItem(fmt.Sprintf("Debug: CLI version %s", a.version), a.version, iconNote))
+	v := a.version
+	if v == "" {
+		v = "unknown"
+	}
+	version := buildResultItem(debugItem(fmt.Sprintf("Debug: CLI version %s", v), v, iconNote))
 
 	stop := a.now()
 	took := fmt.Sprintf("Debug: Took %dms", stop.Sub(start).Milliseconds())
