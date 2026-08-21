@@ -32,7 +32,7 @@ Ported field-for-field from the legacy CLI's `lib/alfred/result_item.dart`
 
 Frozen envelope: `{"cache":{"seconds":<ttl>,"loosereload":true},"items":[...]}`,
 compact unless `alfred_debug` is set (then 2-space indented). Verified
-against a committed golden fixture (`test/fixtures/alfred/search_basic.json`)
+against a committed golden fixture (`internal/launcher/alfred/testdata/search_basic.json`)
 per `.claude/rules/testing.md`'s golden-test rule.
 
 ### Changed: `Render` always uses the envelope
