@@ -60,7 +60,7 @@ Never reach for a real `os.*` call in `internal/jetbrains` or `internal/launcher
 Alfred's Script Filter JSON and Raycast's JSON shape are external contracts other systems
 parse — Alfred reads it from stdout, the Raycast extension expects a specific schema. Every
 change to `internal/launcher/alfred/render.go` or `internal/launcher/raycast/render.go` runs
-against a committed golden fixture (`test/fixtures/`) and asserts byte-identity (Alfred) or
+against a committed golden fixture (`<package>/testdata/`) and asserts byte-identity (Alfred) or
 schema validity (Raycast). A diff is either a bug or a deliberate breaking change — the
 latter needs an ADR before the golden file moves.
 
