@@ -313,19 +313,11 @@ package pulling the average down.
 - [x] `internal/launcher/alfred/render.go` — Script Filter JSON renderer. **Byte-identical to 2.6.2** for the same inputs. `RenderItem` wraps in the same envelope as `RenderItems`. **Fixes [bug] renderItem/renderItems shape mismatch.**
 - [x] Cache TTL exposed via constructor option, default 86400. **Fixes [smell] hardcoded TTL.**
 - [x] Debug items (`alfred_debug=1`) appended via copy-on-write, no caller mutation. **Fixes [bug] `_addDebug` mutates caller list.**
-- [ ] Skeleton `internal/launcher/alfred/installer.go` + `assets/info.plist.tmpl` (template ready, no `Install` impl yet — that's M4).
-- [ ] `internal/launcher/generic/adapter.go` — emits launcher-neutral JSON (`[]domain.Item`). Used by tests, the future Raycast TS extension, and curious users (`hermes search --product phpStorm --launcher generic`).
-- [ ] Golden test: Alfred JSON output for a fixture domain.Item, asserted against a 2.6.2-captured baseline.
+- [ ] Skeleton `internal/launcher/alfred/installer.go` + `assets/info.plist.tmpl` (template ready, no `Install` impl yet — deferred to M4).
+- [x] `internal/launcher/generic/adapter.go` — emits launcher-neutral JSON (`[]domain.Item`). Used by tests, the future Raycast TS extension, and curious users (`hermes search --product phpStorm --launcher generic`).
+- [x] Golden test: Alfred JSON output for a fixture domain.Item, asserted against a 2.6.2-captured baseline.
 
-**Note (2026-07-03):** Tasks 1–4 of the M2 SDD plan are complete. `launcher.go` and `registry.go`
-were implemented and tested as discrete packages (Tasks 1–2). `alfred/render.go` (Task 3) defines
-the private `resultItem`, `envelope`, `cacheInfo` types and `buildResultItem`/`writeEnvelope`
-functions, with a golden fixture test at `internal/launcher/alfred/testdata/search_basic.json` that
-asserts byte-identity against the 2.6.2 Dart output. `alfred/adapter.go` (Task 4) wires `Detect`,
-`Render`, `Name`, `Install`, `Verify` (last two return `ErrInstallNotImplemented` pending M4).
-`iconNote`/`iconClock` constants live in `adapter.go` where they're consumed rather than
-`render.go`, where they'd be unused. The three remaining M2 items (installer skeleton, generic
-adapter, golden parity test) follow in subsequent tasks.
+**Note (2026-06-22):** M2 complete except for the installer skeleton. Bottom-up implementation: `internal/launcher` (interface + registry), then `internal/launcher/alfred` (render → adapter, golden-tested independently), then `internal/launcher/generic`, then registry wiring into `cmd/hermes` (unused until M3). Exact `ResultItem` field semantics (computed vs. omitted, `_addDebug` item set, cache envelope) ported from legacy 2.6.2 `result_item.dart` and `response.dart`. **Key deviation:** golden fixture moved from `test/fixtures/alfred/` to `internal/launcher/alfred/testdata/` because `//go:embed` cannot traverse `..` paths — `testdata/` is Go-idiomatic. **Deferred to M4:** installer skeleton + `assets/info.plist.tmpl` (templating placeholder content would be thrown away when M4 designs the real workflow object graph; ADR-0001 already changed the install model and deferred the bundle id). **Deferred to M3:** third debug item ("Debug: Log `<file>`") requires the `slog` file handler M3 sets up. ADR-0004 documents the frozen `ResultItem`/envelope contract and the one deliberate behavior change (Render always uses the envelope, fixing [bug] renderItem/renderItems shape mismatch structurally).
 
 ---
 
