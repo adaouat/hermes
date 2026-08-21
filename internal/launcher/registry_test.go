@@ -46,27 +46,40 @@ func TestRegistry_GetReturnsRegisteredLauncher(t *testing.T) {
 func TestRegistry_Detect(t *testing.T) {
 	tests := []struct {
 		name     string
+		def      Launcher
 		others   []Launcher
+		env      env.Env
 		wantOK   bool
 		wantName string
 	}{
 		{
 			name:     "first matching launcher wins",
+			def:      fakeLauncher{name: "generic"},
 			others:   []Launcher{fakeLauncher{name: "alfred", detect: true}, fakeLauncher{name: "raycast", detect: true}},
+			env:      envtest.New(nil),
 			wantOK:   true,
 			wantName: "alfred",
 		},
 		{
 			name:   "no match returns false",
+			def:    fakeLauncher{name: "generic"},
 			others: []Launcher{fakeLauncher{name: "alfred", detect: false}},
+			env:    envtest.New(nil),
+			wantOK: false,
+		},
+		{
+			name:   "default adapter is never probed even when detect-positive",
+			def:    fakeLauncher{name: "always-yes", detect: true},
+			others: nil,
+			env:    envtest.New(nil),
 			wantOK: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := NewRegistry(fakeLauncher{name: "generic"}, tc.others...)
-			got, ok := r.Detect(envtest.New(nil))
+			r := NewRegistry(tc.def, tc.others...)
+			got, ok := r.Detect(tc.env)
 			if ok != tc.wantOK {
 				t.Fatalf("Detect() ok = %v, want %v", ok, tc.wantOK)
 			}
