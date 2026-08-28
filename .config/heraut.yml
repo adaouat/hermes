@@ -1,20 +1,23 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/adaouat/heraut/v0.32.0/schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/adaouat/heraut/v0.58.0/schema.json
 
 version: "1"
 versioning:
   strategy: semver
   tag_prefix: v
+
 changelog:
-  generator: git-cliff
   output: CHANGELOG.md
+
+forges:
+  - name: GitHub
+    platform: github
+    repository: adaouat/hermes
+    token_env: GH_TOKEN
+
 release:
-  notes:
-    generator: git-cliff
-  platforms:
-    - name: GitHub
-      platform: github
-      repository: adaouat/hermes
-      token_env: GH_TOKEN
+  notes: {}
+  targets:
+    - forge: GitHub
   assets:
     - "dist/hermes_*_darwin_amd64"
     - "dist/hermes_*_darwin_arm64"
