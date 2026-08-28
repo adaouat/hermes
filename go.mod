@@ -1,16 +1,16 @@
 module github.com/adaouat/hermes
 
-go 1.26.7
+go 1.27.0
 
 require (
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/adaouat/forge v0.17.3
+	github.com/adaouat/forge v0.18.0
 	github.com/spf13/cobra v1.10.2
 )
 
 require (
-	charm.land/bubbles/v2 v2.2.0 // indirect
+	charm.land/bubbles/v2 v2.2.1 // indirect
 	charm.land/bubbletea/v2 v2.0.9 // indirect
 	charm.land/fang/v2 v2.0.1 // indirect
 	charm.land/glamour/v2 v2.0.1 // indirect
@@ -21,9 +21,9 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260812204455-68fa937c71be // indirect
 	github.com/charmbracelet/x/ansi v0.11.8 // indirect
-	github.com/charmbracelet/x/exp/charmtone v0.0.0-20260816001655-68d539dca504 // indirect
+	github.com/charmbracelet/x/exp/charmtone v0.0.0-20260823001701-96af6d2cb5f6 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
-	github.com/charmbracelet/x/exp/slice v0.0.0-20260816001655-68d539dca504 // indirect
+	github.com/charmbracelet/x/exp/slice v0.0.0-20260823001701-96af6d2cb5f6 // indirect
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
