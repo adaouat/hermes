@@ -30,6 +30,7 @@ type Adapter struct {
 	env        env.Env
 	ttlSeconds int
 	version    string
+	logFile    string
 	now        func() time.Time
 }
 
@@ -51,6 +52,14 @@ func WithVersion(version string) Option {
 // inject a fixed clock; production uses the default, time.Now.
 func WithClock(now func() time.Time) Option {
 	return func(a *Adapter) { a.now = now }
+}
+
+// WithLogFile sets the path Render's third debug item ("Debug: Log <file>") points
+// readers at when alfred_debug is set. Empty (the default) omits that item - there's
+// nothing to point at until a caller (cmd/hermes's setupLogging, roadmap M3) has actually
+// opened a debug log file.
+func WithLogFile(path string) Option {
+	return func(a *Adapter) { a.logFile = path }
 }
 
 // NewAdapter returns an Adapter reading debug/detect signals from e.
@@ -122,7 +131,11 @@ func (a *Adapter) debugItems(start time.Time) []resultItem {
 		start.Format("2006-01-02T15:04:05.000"), stop.Format("2006-01-02T15:04:05.000"))
 	timer := buildResultItem(debugItem(took, timerPath, iconClock))
 
-	return []resultItem{version, timer}
+	items := []resultItem{version, timer}
+	if a.logFile != "" {
+		items = append(items, buildResultItem(debugItem(fmt.Sprintf("Debug: Log %s", a.logFile), a.logFile, iconNote)))
+	}
+	return items
 }
 
 func debugItem(name, path, iconPath string) domain.Item {

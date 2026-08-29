@@ -153,6 +153,33 @@ func TestAdapter_Render_noDebugItemsWithoutDebugEnv(t *testing.T) {
 	}
 }
 
+func TestAdapter_Render_debugItemsIncludeLogFileWhenSet(t *testing.T) {
+	fixed := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
+	a := NewAdapter(
+		envtest.New(map[string]string{"alfred_debug": "1"}),
+		WithClock(func() time.Time { return fixed }),
+		WithLogFile("/tmp/hermes-debug-123.log"),
+	)
+
+	items := []domain.Item{{Name: "p", Path: "/x/p", IconPath: "/a.app", BinaryPath: "/a.app/Contents/MacOS/p", Match: "p p"}}
+
+	var buf bytes.Buffer
+	if err := a.Render(items, &buf); err != nil {
+		t.Fatalf("Render(): %v", err)
+	}
+
+	var got envelope
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal output: %v", err)
+	}
+	if len(got.Items) != 4 {
+		t.Fatalf("Items = %d, want 4 (1 project + 3 debug)", len(got.Items))
+	}
+	if got.Items[3].Title != "Debug: Log /tmp/hermes-debug-123.log" {
+		t.Errorf("Items[3].Title = %q, want %q", got.Items[3].Title, "Debug: Log /tmp/hermes-debug-123.log")
+	}
+}
+
 func TestAdapter_InstallAndVerifyNotImplemented(t *testing.T) {
 	a := NewAdapter(envtest.New(nil))
 	if err := a.Install(context.Background(), launcher.InstallOpts{}); !errors.Is(err, ErrInstallNotImplemented) {
