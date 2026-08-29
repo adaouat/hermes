@@ -325,15 +325,37 @@ package pulling the average down.
 
 **Objective:** all read-only commands work end-to-end through the launcher abstraction.
 
-- [ ] `internal/cmd/root.go` — root cobra command. Persistent flags: `--launcher <name>` (precedence per O1), `--config <path>`, `--debug`.
-- [ ] `internal/cmd/search.go`, `searchall.go`, `open.go`, `configuration.go` — each:
+- [x] `internal/cmd/root.go` — root cobra command. Persistent flags: `--launcher <name>` (precedence per O1), `--config <path>`, `--debug`.
+- [x] `internal/cmd/search.go`, `searchall.go`, `open.go`, `configuration.go` — each:
   - parses flags
   - calls `jetbrains.Service`
   - hands `[]domain.Item` to `launcher.Get(flag).Render(items, os.Stdout)`
-- [ ] Exit codes: every command returns `error` → `exitcode.Wrap(...)` at command boundary → `main` calls `exitcode.Resolve`. Custom domain code: `NotFound=10` (in forge's reserved 4–69 range). **Fixes [risk] no structured exit codes.**
-- [ ] No bare `catch` (Go has none — every error path is explicit). **Fixes [bug] bare catches.**
-- [ ] Logging: `slog` with stderr handler (never stdout — Alfred reads JSON from stdout). Debug mode mirrors to a temp file. **Fixes [smell] dual logger, [bug] `Logger.level` global mutation.**
-- [ ] `--version` / `version` subcommand handled natively by fang via `cli.Run`. **Fixes [smell] dead `'completion'` fast-track.**
+- [x] Exit codes: every command returns `error` → `exitcode.Wrap(...)` at command boundary → `main` calls `exitcode.Resolve`. Custom domain code: `NotFound=10` (in forge's reserved 4–69 range). **Fixes [risk] no structured exit codes.**
+- [x] No bare `catch` (Go has none — every error path is explicit). **Fixes [bug] bare catches.**
+- [x] Logging: `slog` with stderr handler (never stdout — Alfred reads JSON from stdout). Debug mode mirrors to a temp file. **Fixes [smell] dual logger, [bug] `Logger.level` global mutation.**
+- [x] `--version` / `version` subcommand handled natively by fang via `cli.Run`. **Fixes [smell] dead `'completion'` fast-track.**
+
+**Note (2026-08-29):** Implemented bottom-up: `jetbrains.Service.Open` and
+`ProductDetails` JSON tags (M1 extensions the `open`/`configuration` commands needed) and
+the Alfred adapter's deferred third debug item (`alfred.WithLogFile`, M2's ADR-0004 note)
+landed first, then `cmd/hermes`'s composition-root pieces (`parseProduct`, `loadConfig`,
+`resolveLauncher`, `setupLogging`, the `runtime` struct wiring them together and `root.go`'s
+persistent flags), then the four commands themselves. Cobra command files live directly in
+`cmd/hermes` (package `main`), not a separate `internal/cmd` - continuing the precedent M0/M2
+already set (see M0's completion note); `coding.md`'s layer table still names `internal/cmd`
+and should be corrected in a follow-up doc pass. `--config <path>` is a new, roadmap-implied
+but previously unspecified flag: it reads a `jb_custom_config`-shaped JSON file and takes
+precedence over the env var. The legacy CLI's §5.5 failure semantics (render an error item
+in Alfred on a not-found product) were deliberately **not** ported - `search`/`open` now
+return a structured exit code (`exitNotFound = 10`) instead, a user-approved break recorded
+in ADR-0006. `root.go`'s pre-existing (M0) unconditional `updateHint` call would have
+corrupted `search`/`all`/`open`'s JSON stdout the moment they existed, so it's now gated by a
+`jsonOutputCommands` set - a necessary fix exposed by M3's own commands, not a pull-forward
+of M6's full `updatecheck.Hinter` wiring (which still needs to add `doctor`/`install` to that
+set once M4 lands). `rootCmd`/`PersistentPreRunE`/`updateHint` remain untested, consistent
+with this file's existing precedent for thin wiring functions; every piece they call
+(`setupLogging`, `loadConfig`, `resolveLauncher`, `newLauncherRegistry`, `runtime.init`) is
+unit-tested with fakes.
 
 ---
 
