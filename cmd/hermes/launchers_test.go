@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewLauncherRegistry_detectsAlfred(t *testing.T) {
-	r := newLauncherRegistry("1.2.3", envtest.New(nil))
+	r := newLauncherRegistry("1.2.3", envtest.New(nil), "")
 
 	got, ok := r.Detect(envtest.New(map[string]string{"alfred_version": "5.5"}))
 	if !ok || got.Name() != "alfred" {
@@ -21,7 +21,7 @@ func TestNewLauncherRegistry_detectsAlfred(t *testing.T) {
 }
 
 func TestNewLauncherRegistry_defaultIsGeneric(t *testing.T) {
-	r := newLauncherRegistry("1.2.3", envtest.New(nil))
+	r := newLauncherRegistry("1.2.3", envtest.New(nil), "")
 	if got := r.Default().Name(); got != "generic" {
 		t.Errorf("Default() = %q, want %q", got, "generic")
 	}
