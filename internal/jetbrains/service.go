@@ -94,16 +94,16 @@ func (s Service) Open(product domain.Product, path string) (domain.Item, error) 
 	locator := NewLocator(s.FS, s.Env, product, details)
 	appPath, err := locator.LocateApplication()
 	if err != nil {
-		return domain.Item{}, err
+		return domain.Item{}, fmt.Errorf("opening project: locating application: %w", err)
 	}
 	binPath, err := locator.LocateBin()
 	if err != nil {
-		return domain.Item{}, err
+		return domain.Item{}, fmt.Errorf("opening project: locating binary: %w", err)
 	}
 
 	name, err := NewProjectName(s.FS).Resolve(path)
 	if err != nil {
-		return domain.Item{}, err
+		return domain.Item{}, fmt.Errorf("opening project: resolving name: %w", err)
 	}
 
 	return domain.Item{
