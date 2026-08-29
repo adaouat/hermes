@@ -51,7 +51,7 @@ func (s Service) Search(product domain.Product, filter string) ([]domain.Item, e
 	repo := NewRepository(s.FS, s.Env, product, details)
 	projectPaths, err := repo.RecentProjects()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("searching projects: listing recent projects: %w", err)
 	}
 
 	names := NewProjectName(s.FS)
