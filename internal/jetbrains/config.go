@@ -12,9 +12,9 @@ import (
 // JetBrains IDE: its application bundle name(s), settings-directory prefix, and binary
 // name(s).
 type ProductDetails struct {
-	ApplicationNames []string
-	PreferencePrefix string
-	Binaries         []string
+	ApplicationNames []string `json:"applicationNames"`
+	PreferencePrefix string   `json:"preferencePrefix"`
+	Binaries         []string `json:"binaries"`
 }
 
 // Config maps every supported Product to its ProductDetails.

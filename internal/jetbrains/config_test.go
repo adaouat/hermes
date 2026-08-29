@@ -1,6 +1,8 @@
 package jetbrains
 
 import (
+	"encoding/json"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -225,5 +227,41 @@ func TestLoad_invalidJSON(t *testing.T) {
 	})
 	if _, err := Load(e); err == nil {
 		t.Error("Load() error = nil, want error for invalid JSON")
+	}
+}
+
+func TestProductDetails_marshalKeys(t *testing.T) {
+	raw, err := json.Marshal(Defaults()[domain.PhpStorm])
+	if err != nil {
+		t.Fatalf("Marshal(): %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal(): %v", err)
+	}
+	for _, key := range []string{"applicationNames", "preferencePrefix", "binaries"} {
+		if _, ok := got[key]; !ok {
+			t.Errorf("marshaled ProductDetails missing key %q, got %v", key, got)
+		}
+	}
+}
+
+func TestConfig_marshalRoundTrips(t *testing.T) {
+	raw, err := json.Marshal(Defaults())
+	if err != nil {
+		t.Fatalf("Marshal(Defaults()): %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("Unmarshal(): %v", err)
+	}
+
+	merged, err := Merge(Defaults(), decoded)
+	if err != nil {
+		t.Fatalf("Merge(Defaults(), decoded): %v", err)
+	}
+	if !reflect.DeepEqual(merged, Defaults()) {
+		t.Errorf("round-tripped config != Defaults()")
 	}
 }
