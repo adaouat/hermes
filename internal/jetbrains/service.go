@@ -41,11 +41,11 @@ func (s Service) Search(product domain.Product, filter string) ([]domain.Item, e
 	locator := NewLocator(s.FS, s.Env, product, details)
 	appPath, err := locator.LocateApplication()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("searching projects: locating application: %w", err)
 	}
 	binPath, err := locator.LocateBin()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("searching projects: locating binary: %w", err)
 	}
 
 	repo := NewRepository(s.FS, s.Env, product, details)
@@ -62,7 +62,7 @@ func (s Service) Search(product domain.Product, filter string) ([]domain.Item, e
 	for _, projectPath := range projectPaths {
 		name, err := names.Resolve(projectPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("searching projects: resolving project name: %w", err)
 		}
 
 		base := filepath.Base(projectPath)
