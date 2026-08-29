@@ -82,6 +82,40 @@ func (s Service) Search(product domain.Product, filter string) ([]domain.Item, e
 	return items, nil
 }
 
+// Open resolves path into a single launcher-neutral domain.Item for product, without
+// listing (or checking against) the product's recent projects - the legacy open command
+// never validated the given path either, it just built an item from it directly.
+func (s Service) Open(product domain.Product, path string) (domain.Item, error) {
+	details, ok := s.Config[product]
+	if !ok {
+		return domain.Item{}, fmt.Errorf("jetbrains: unknown product %q", product)
+	}
+
+	locator := NewLocator(s.FS, s.Env, product, details)
+	appPath, err := locator.LocateApplication()
+	if err != nil {
+		return domain.Item{}, err
+	}
+	binPath, err := locator.LocateBin()
+	if err != nil {
+		return domain.Item{}, err
+	}
+
+	name, err := NewProjectName(s.FS).Resolve(path)
+	if err != nil {
+		return domain.Item{}, err
+	}
+
+	return domain.Item{
+		Name:           name,
+		Path:           path,
+		IconPath:       appPath,
+		BinaryPath:     binPath,
+		IsModernBinary: strings.Contains(binPath, "MacOS"),
+		Match:          name + " " + filepath.Base(path),
+	}, nil
+}
+
 // SearchAll aggregates Search across every supported product, silently skipping
 // products that can't be located (e.g. not installed) rather than failing the whole
 // call.

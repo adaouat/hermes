@@ -120,3 +120,61 @@ func TestService_SearchAll_skipsFailingProducts(t *testing.T) {
 		}
 	}
 }
+
+func TestService_Open_buildsItem(t *testing.T) {
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	svc := NewService(iofstest.New(phpStormFixture()), e, Defaults())
+
+	item, err := svc.Open(domain.PhpStorm, "/home/x/projects/aurora")
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+
+	want := domain.Item{
+		Name:           "AuroraProject",
+		Path:           "/home/x/projects/aurora",
+		IconPath:       "/Applications/PhpStorm.app",
+		BinaryPath:     "/Applications/PhpStorm.app/Contents/MacOS/phpstorm",
+		IsModernBinary: true,
+		Match:          "AuroraProject aurora",
+	}
+	if item != want {
+		t.Errorf("Open() = %+v, want %+v", item, want)
+	}
+}
+
+func TestService_Open_pathNotAmongRecentProjectsStillResolves(t *testing.T) {
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	svc := NewService(iofstest.New(phpStormFixture()), e, Defaults())
+
+	item, err := svc.Open(domain.PhpStorm, "/home/x/projects/never-seen")
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	if item.Name != "never-seen" {
+		t.Errorf("Open() on a path with no .idea dir: Name = %q, want basename fallback %q", item.Name, "never-seen")
+	}
+}
+
+func TestService_Open_appNotFound(t *testing.T) {
+	files := phpStormFixture()
+	delete(files, "/Applications/PhpStorm.app/Contents/MacOS/phpstorm")
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	svc := NewService(iofstest.New(files), e, Defaults())
+
+	_, err := svc.Open(domain.PhpStorm, "/home/x/projects/aurora")
+	var notFound *NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Fatalf("Open() error = %v, want *NotFoundError", err)
+	}
+}
+
+func TestService_Open_unknownProduct(t *testing.T) {
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	svc := NewService(iofstest.New(phpStormFixture()), e, Defaults())
+
+	_, err := svc.Open(domain.Product("notAProduct"), "/home/x/projects/aurora")
+	if err == nil {
+		t.Fatal("Open(unknown product): want error, got nil")
+	}
+}
