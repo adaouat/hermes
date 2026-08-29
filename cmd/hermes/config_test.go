@@ -43,3 +43,15 @@ func TestLoadConfig_missingFileReturnsError(t *testing.T) {
 		t.Fatal("loadConfig(missing file): want error, got nil")
 	}
 }
+
+func TestLoadConfig_malformedJSONReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hermes-config.json")
+	if err := os.WriteFile(path, []byte("not valid json"), 0o600); err != nil {
+		t.Fatalf("WriteFile(): %v", err)
+	}
+
+	if _, err := loadConfig(envtest.New(nil), path); err == nil {
+		t.Fatal("loadConfig(malformed JSON): want error, got nil")
+	}
+}

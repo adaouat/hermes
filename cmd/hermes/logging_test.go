@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -53,5 +54,14 @@ func TestSetupLogging_debug_mirrorsToFileAtDebugLevel(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "debug record") {
 		t.Errorf("log file missing Debug record: %s", content)
+	}
+}
+
+func TestSetupLogging_createTempFailsOnBadDir(t *testing.T) {
+	var stderr bytes.Buffer
+	badDir := filepath.Join(t.TempDir(), "does-not-exist")
+
+	if _, err := setupLogging(&stderr, true, badDir); err == nil {
+		t.Fatal("setupLogging() with a nonexistent dir: want error, got nil")
 	}
 }
