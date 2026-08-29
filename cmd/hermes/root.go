@@ -49,6 +49,8 @@ func rootCmd(version string) *cobra.Command {
 		return nil
 	}
 
+	cmd.AddCommand(newSearchCmd(rt))
+
 	return cmd
 }
 
