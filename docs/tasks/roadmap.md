@@ -343,16 +343,17 @@ landed first, then `cmd/hermes`'s composition-root pieces (`parseProduct`, `load
 persistent flags), then the four commands themselves. Cobra command files live directly in
 `cmd/hermes` (package `main`), not a separate `internal/cmd` - continuing the precedent M0/M2
 already set (see M0's completion note); `coding.md`'s layer table still names `internal/cmd`
-and should be corrected in a follow-up doc pass. `--config <path>` is a new, roadmap-implied
-but previously unspecified flag: it reads a `jb_custom_config`-shaped JSON file and takes
-precedence over the env var. The legacy CLI's §5.5 failure semantics (render an error item
-in Alfred on a not-found product) were deliberately **not** ported - `search`/`open` now
-return a structured exit code (`exitNotFound = 10`) instead, a user-approved break recorded
-in ADR-0006. `root.go`'s pre-existing (M0) unconditional `updateHint` call would have
-corrupted `search`/`all`/`open`'s JSON stdout the moment they existed, so it's now gated by a
-`jsonOutputCommands` set - a necessary fix exposed by M3's own commands, not a pull-forward
-of M6's full `updatecheck.Hinter` wiring (which still needs to add `doctor`/`install` to that
-set once M4 lands). `rootCmd`/`PersistentPreRunE`/`updateHint` remain untested, consistent
+and should be corrected in a follow-up doc pass. `--config <path>` is a flag the roadmap
+already named but left behaviorally unspecified: it reads a `jb_custom_config`-shaped JSON
+file and takes precedence over the env var. The legacy CLI's §5.5 failure semantics (render
+an error item in Alfred on a not-found product) were deliberately **not** ported - `search`/`open`
+now return a structured exit code (`exitNotFound = 10`) instead, a user-approved break recorded
+in ADR-0006. `root.go`'s pre-existing (M0) unconditional `updateHint` call is now gated by a
+`jsonOutputCommands` set to avoid a noisy version-upgrade banner appearing on stderr during
+Alfred/Raycast-driven invocations (stderr output can surface in Alfred's debugger and similar
+tools, which would be confusing even though it doesn't break the JSON stdout contract) - a
+necessary gate exposed by M3's own commands, not a pull-forward of M6's full `updatecheck.Hinter`
+wiring (which still needs to add `doctor`/`install` to that set once M4 lands). `rootCmd`/`PersistentPreRunE`/`updateHint` remain untested, consistent
 with this file's existing precedent for thin wiring functions; every piece they call
 (`setupLogging`, `loadConfig`, `resolveLauncher`, `newLauncherRegistry`, `runtime.init`) is
 unit-tested with fakes.

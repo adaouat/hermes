@@ -12,8 +12,9 @@ import (
 )
 
 // jsonOutputCommands never get the update-check banner appended by PersistentPostRunE -
-// it would corrupt their stdout, which Alfred/Raycast parse as JSON. doctor/install (M4)
-// don't emit JSON and are deliberately left off this set so they keep the hint once they
+// it avoids a noisy version-upgrade banner appearing on stderr during Alfred/Raycast-driven
+// invocations (stderr can surface in debugger panels, which would be confusing). doctor/install
+// (M4) don't emit JSON and are deliberately left off this set so they keep the hint once they
 // land (full finalization is roadmap M6's job).
 var jsonOutputCommands = map[string]bool{
 	"search": true,
