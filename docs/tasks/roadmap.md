@@ -353,8 +353,15 @@ in ADR-0006. `root.go`'s pre-existing (M0) unconditional `updateHint` call is no
 Alfred/Raycast-driven invocations (stderr output can surface in Alfred's debugger and similar
 tools, which would be confusing even though it doesn't break the JSON stdout contract) - a
 necessary gate exposed by M3's own commands, not a pull-forward of M6's full `updatecheck.Hinter`
-wiring (which still needs to add `doctor`/`install` to that set once M4 lands). `rootCmd`/`PersistentPreRunE`/`updateHint` remain untested, consistent
-with this file's existing precedent for thin wiring functions; every piece they call
+wiring (which still needs to wire the Hinter itself into the non-JSON commands; `doctor`/`install`
+are deliberately left off `jsonOutputCommands` because they don't emit JSON, so they already keep
+the hint once M4 lands - see `root.go`'s own comment on that set). `rootCmd`/`PersistentPreRunE`/`updateHint` remain untested, consistent
+with this file's existing precedent for thin wiring functions; the four `new*Cmd` constructors
+(`newSearchCmd`, `newAllCmd`, `newOpenCmd`, `newConfigurationCmd`) are untested too, and unlike the
+wiring functions above they aren't purely thin plumbing - they declare the CLI's actual flag names
+(`--product`, `--filter`, `--path`) and `MarkFlagRequired` calls, so that user-facing surface is
+currently unverified by tests as well. Accepted as a known gap for this milestone rather than an
+oversight. Every piece the wiring functions call
 (`setupLogging`, `loadConfig`, `resolveLauncher`, `newLauncherRegistry`, `runtime.init`) is
 unit-tested with fakes.
 
@@ -364,6 +371,10 @@ unit-tested with fakes.
 
 **⚠ Blocked on §2.2 (A1–A6).**
 
+- [ ] Implement the `HERMES_DEBUG`/`hermes_debug` env var per ADR-0002 O2 (deferred from M3 -
+  `--debug` flag was implemented, the env-var trigger was not). Resolve ADR-0002's own casing
+  inconsistency between `HERMES_LAUNCHER` (uppercase, O1) and `hermes_debug` (lowercase, O2) as
+  part of this task - pick one and use it consistently.
 - [ ] `internal/launcher/alfred/installer.go`:
   - Parse `~/Library/Application Support/Alfred/prefs.json`.
   - Resolve workflow target = `<prefs.current>/workflows/@bchatard-alfred-jetbrains-next/`.
