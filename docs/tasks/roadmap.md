@@ -371,7 +371,7 @@ unit-tested with fakes.
 
 **⚠ Blocked on §2.2 (A1–A6).**
 
-- [ ] Implement the `HERMES_DEBUG`/`hermes_debug` env var per ADR-0002 O2 (deferred from M3 -
+- [x] Implement the `HERMES_DEBUG`/`hermes_debug` env var per ADR-0002 O2 (deferred from M3 -
   `--debug` flag was implemented, the env-var trigger was not). Resolve ADR-0002's own casing
   inconsistency between `HERMES_LAUNCHER` (uppercase, O1) and `hermes_debug` (lowercase, O2) as
   part of this task - pick one and use it consistently.
@@ -384,6 +384,16 @@ unit-tested with fakes.
 - [ ] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch).
 - [ ] Deprecate `--retain` with a one-version warning.
 - [ ] `internal/cmd/doctor.go` — for each (or specified) product, prints paths searched / matched / regex applied / which recents file was used. Uses `forge/ui` status helpers + `Spinner.Step` for the structured output. Stdout, not Alfred JSON.
+
+**Note (2026-08-30):** M4 in progress. `HERMES_DEBUG` landed first: `resolveDebug` (new
+`cmd/hermes/debug.go`) implements ADR-0002 O2's flag-wins-else-env-var-presence precedence,
+matching `alfred_debug`'s own presence-based semantics (any value counts, not just truthy
+strings) rather than a `strconv.ParseBool` scheme. Wired into `runtime.init` ahead of
+`setupLogging` so both the `--debug` flag and the env var reach the same debug-logging path.
+Resolved ADR-0002's casing inconsistency by picking uppercase throughout (`HERMES_DEBUG`),
+matching `HERMES_LAUNCHER` (O1) rather than the ADR's original lowercase `hermes_debug`
+example — ADR-0002 O2 edited to match. `--debug`'s flag help text now names the env var,
+mirroring `--config`'s existing precedent of naming `jb_custom_config`.
 
 ---
 

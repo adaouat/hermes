@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/adaouat/hermes/internal/env/envtest"
@@ -21,6 +23,21 @@ func TestRuntimeInit_wiresConfigAndLauncher(t *testing.T) {
 	}
 	if len(rt.config) != 19 {
 		t.Errorf("config has %d products, want 19 (defaults, no overrides)", len(rt.config))
+	}
+}
+
+func TestRuntimeInit_hermesDebugEnvVarEnablesDebugLogging(t *testing.T) {
+	rt := &runtime{}
+	e := envtest.New(map[string]string{"HERMES_DEBUG": "1"})
+	var stderr bytes.Buffer
+
+	if err := rt.init(iofstest.New(nil), e, "1.0.0", false, "", "", &stderr); err != nil {
+		t.Fatalf("init(): %v", err)
+	}
+
+	slog.Debug("debug record")
+	if !strings.Contains(stderr.String(), "debug record") {
+		t.Errorf("stderr missing Debug record with HERMES_DEBUG set and --debug absent: %s", stderr.String())
 	}
 }
 

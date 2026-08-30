@@ -21,13 +21,13 @@ type runtime struct {
 }
 
 // init wires fs/e (injected so tests use fakes; production passes iofs.New()/env.New()),
-// the merged product configuration (loadConfig), logging (setupLogging), and the launcher
-// resolved per ADR-0002 O1 (resolveLauncher).
+// the merged product configuration (loadConfig), logging (setupLogging, gated by
+// resolveDebug per ADR-0002 O2), and the launcher resolved per ADR-0002 O1 (resolveLauncher).
 func (rt *runtime) init(fs iofs.FS, e env.Env, version string, debug bool, launcherFlag, configFlag string, stderr io.Writer) error {
 	rt.fs = fs
 	rt.env = e
 
-	logFile, err := setupLogging(stderr, debug, "")
+	logFile, err := setupLogging(stderr, resolveDebug(debug, e), "")
 	if err != nil {
 		return fmt.Errorf("setting up logging: %w", err)
 	}

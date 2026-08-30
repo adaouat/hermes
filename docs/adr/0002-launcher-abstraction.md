@@ -59,19 +59,19 @@ new ADR.
   replaces the roadmap's original proposal of `JB_LAUNCHER` + a default-to-alfred fallback —
   both superseded by the clean-break naming decided in
   [`0001-go-rewrite-on-forge.md`](0001-go-rewrite-on-forge.md).
-- **O2 — Canonical config var prefix.** New cross-launcher config vars use the `hermes_`
-  prefix (e.g. `hermes_debug`), introduced immediately with **no `jb_*` or `alfred_*` alias
+- **O2 — Canonical config var prefix.** New cross-launcher config vars use the `HERMES_`
+  prefix (e.g. `HERMES_DEBUG`), introduced immediately with **no `jb_*` or `alfred_*` alias
   period** — superseding the roadmap's original `jb_debug`/`jb_launcher_version` proposal.
   This is scoped narrowly:
-  - `hermes_*` is for new, launcher-neutral *behavioral* signals we invent (debug mode,
-    launcher selection).
+  - `HERMES_*` is for new, launcher-neutral *behavioral* signals we invent (debug mode,
+    launcher selection) — uppercase throughout, matching `HERMES_LAUNCHER` (O1).
   - The existing `jb_*` *configuration* surface (`jb_custom_config`, `jb_binaries`,
     `jb_application`, `jb_settings`) is unrelated and stays frozen (R5, unchanged from
     2.x).
   - `alfred_version` and `alfred_debug` are signals **Alfred itself** sets automatically
     when invoking a Script Filter (or opening its debugger panel) — not ours to rename or
     alias. The Alfred adapter's `Detect()` reads `alfred_version` as-is; presence of
-    `alfred_debug` is an Alfred-native detail orthogonal to the new `hermes_debug` mechanism,
+    `alfred_debug` is an Alfred-native detail orthogonal to the new `HERMES_DEBUG` mechanism,
     not deprecated, just not part of this rename.
 - **O3 — Generic output.** Added. `--launcher generic` (and the implicit fallback in O1)
   emits launcher-neutral JSON (`[]domain.Item`) — used by scripts, the Raycast extension

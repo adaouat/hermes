@@ -40,7 +40,7 @@ func rootCmd(version string) *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&launcherFlag, "launcher", "", "Launcher output format: alfred, generic (default: auto-detect)")
 	cmd.PersistentFlags().StringVar(&configFlag, "config", "", "Path to a jb_custom_config-shaped JSON file (overrides jb_custom_config)")
-	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "Verbose logging, mirrored to a temp file")
+	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "Verbose logging, mirrored to a temp file (or set HERMES_DEBUG)")
 
 	cmd.PersistentPostRunE = func(c *cobra.Command, _ []string) error {
 		if jsonOutputCommands[c.Name()] {
