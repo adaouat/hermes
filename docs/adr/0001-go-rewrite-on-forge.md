@@ -28,10 +28,12 @@ answers.
   at the new one — accepted as part of 3.0 rather than deferred to 4.0.
 - **N3 — Go module path.** `github.com/adaouat/hermes`. Already reflected in `go.mod`;
   ratified here.
-- **N4 — Alfred workflow bundle id.** Changed from `@bchatard-alfred-jetbrains-next` to a new
-  id (chosen during M4 install implementation). This orphans every existing Alfred install —
-  accepted as part of the clean break; users reinstall via `hermes install --launcher
-  alfred`. No migration path is provided.
+- **N4 — Alfred workflow bundle id.** Changed from the 2.x CLI's `fr.chatard.jetbrains.workflow`
+  (folder `@bchatard-alfred-jetbrains-next`) to `dev.adaouat.hermes.alfred`, chosen during M4
+  install implementation. This orphans every existing Alfred install — accepted as part of the
+  clean break; users reinstall via `hermes install --launcher alfred`. No migration path is
+  provided. (Supersedes roadmap §2.1 N4's original answer of "keep the old id," which this ADR
+  overrides for the same clean-break reasoning as N1/N3.)
 
 ### Alfred install model (§2.2)
 

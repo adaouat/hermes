@@ -375,14 +375,16 @@ unit-tested with fakes.
   `--debug` flag was implemented, the env-var trigger was not). Resolve ADR-0002's own casing
   inconsistency between `HERMES_LAUNCHER` (uppercase, O1) and `hermes_debug` (lowercase, O2) as
   part of this task - pick one and use it consistently.
-- [ ] `internal/launcher/alfred/installer.go`:
+- [x] `internal/launcher/alfred/installer.go`:
   - Parse `~/Library/Application Support/Alfred/prefs.json`.
-  - Resolve workflow target = `<prefs.current>/workflows/@bchatard-alfred-jetbrains-next/`.
-  - Render `info.plist` from template with `{{.Version}}` and `{{.Binary}}` (from `os.Executable()` + `EvalSymlinks`).
+  - Resolve workflow target = `<prefs.current>/workflows/dev.adaouat.hermes.alfred/` (ADR-0001 N4's
+    new bundle id, not the 2.x `@bchatard-alfred-jetbrains-next`).
+  - Render `info.plist` from template with `{{.Version}}` and `{{.Binary}}` (`opts.BinaryPath`,
+    already resolved by the caller via `os.Executable()` + `EvalSymlinks` - that resolution is
+    cmd/hermes's job, not installer.go's, per M4's note below).
   - Write `info.plist` + `icon.png` atomically (tmp + `os.Rename`).
   - **Never move/copy the running binary.** **Fixes [risk] destructive install.**
-- [ ] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch).
-- [ ] Deprecate `--retain` with a one-version warning.
+- [ ] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch). No `--retain` flag: ADR-0001 A2 removes it immediately with no deprecation period (this line originally said otherwise; corrected to match the ADR - see M4's note below).
 - [ ] `internal/cmd/doctor.go` — for each (or specified) product, prints paths searched / matched / regex applied / which recents file was used. Uses `forge/ui` status helpers + `Spinner.Step` for the structured output. Stdout, not Alfred JSON.
 
 **Note (2026-08-30):** M4 in progress. `HERMES_DEBUG` landed first: `resolveDebug` (new
@@ -394,6 +396,56 @@ Resolved ADR-0002's casing inconsistency by picking uppercase throughout (`HERME
 matching `HERMES_LAUNCHER` (O1) rather than the ADR's original lowercase `hermes_debug`
 example — ADR-0002 O2 edited to match. `--debug`'s flag help text now names the env var,
 mirroring `--config`'s existing precedent of naming `jb_custom_config`.
+
+**Note (2026-09-01):** `internal/launcher/alfred/installer.go` landed next, full-ported from
+the real, currently-installed `@bchatard-alfred-jetbrains-next` workflow (`info.plist` +
+`icon.png`, sourced from this machine's live Alfred install since neither asset existed in
+this repo or the old Dart repo's checkout) rather than written from a placeholder. Two docs
+conflicts surfaced and were resolved toward the ADR before implementing, per user decision:
+(1) the bundle id - roadmap §2.1 N4 said keep `@bchatard-alfred-jetbrains-next`, but ADR-0001
+N4 already overrode that to "a new id, chosen during M4"; **`dev.adaouat.hermes.alfred`** was
+chosen now and ADR-0001 N4 updated to record it (reverse-DNS under the `adaouat` org, replacing
+the personal `fr.chatard.jetbrains.workflow`/`@bchatard-...` naming - every 2.x install is
+orphaned, matching N1/N3's clean break). (2) `--retain` - this file's own task line said
+"deprecate with a one-version warning," contradicting ADR-0001 A2's "removed immediately, no
+deprecation." The ADR wins; the task line above is corrected and `install.go` (not yet built)
+will carry no `--retain` flag at all.
+
+Porting the real 51-object/34-script workflow (not a synthetic template) meant adapting live
+production content, not just plumbing: every `./bin/alfred_jetbrains_cli <cmd> ...` script
+body (32 of them) became `{{.Binary}} <cmd> ...` (ADR-0001 A1 - the binary is never copied
+into the workflow anymore, so the old relative `./bin/` path is gone); the root `bundleid` and
+`version` (`2.6.2` → `{{.Version}}`) and `webaddress` (→ `github.com/adaouat/hermes`) were
+retargeted; the embedded `readme` was rewritten to drop the npm/Node.js install path (roadmap
+M6 already decided to drop npm) in favor of `brew install adaouat/tap/hermes` +
+`hermes install --launcher alfred`. One real **[bug]** surfaced and was fixed while porting:
+the Android Studio "open" script invoked `--product studio`, inconsistent with its own
+"search" script's (correct) `--product androidStudio` and with `pkg/domain.Product`'s actual
+enum value - the old workflow would have failed on "open" for that product. A pre-existing
+missing-letter misspelling of "trigger" across 15 product config labels ("Keyword to ___ X")
+was corrected, since the typos linter flagged it as ambiguous between two corrections and
+refused to auto-fix it. Everything else - all 51 objects'
+connections/UIDs, the `uidata` canvas layout, the `userconfigurationconfig` keyword/edition
+fields, `icon.png` - carried over byte-identical; a `diff` against the source file after
+porting has exactly 43 hunks, matching this list. Go's `go:embed` cannot traverse `..`
+(same constraint M2's note already hit for golden fixtures), so the two assets live at
+`internal/launcher/alfred/assets/` rather than a repo-root `assets/`, contra this file's
+original phrasing.
+
+`install`/`verify` (installer.go) read exclusively through `opts.FS`/`opts.Env` (prefs.json,
+drift comparison), but *write* (`os.MkdirAll`, the tmp+rename in `writeFileAtomically`) via
+the real `os` package directly - `iofs.FS` is a read-only port (its own doc comment says so)
+with no write method to abstract through, and `coding.md`'s "no direct os calls" rule names
+only `os.Stat`/`os.Getenv`-style reads. `testing.md`'s determinism rule already permits real
+disk access scoped to `t.TempDir()`, which is how `installer_test.go` exercises every write
+path; one test (`TestAdapter_InstallAndVerifyDelegateToInstaller`) needed the real `iofs.New()`
+rather than the usual `iofstest` fake, since `Verify`'s fake-backed reads can't observe what
+`Install`'s real-disk writes produced. `opts.BinaryPath` resolution (`os.Executable()` +
+`EvalSymlinks`) stays the composition root's job (`cmd/hermes`, not yet built) - consistent
+with `iofs.New()`/`env.New()` only ever being constructed there. `InstallOpts.Force` is
+accepted but unused for now (no task text specifies its semantics yet; left for `install.go`).
+`Adapter.Install`/`Verify` now delegate to `install`/`verify`; the `ErrInstallNotImplemented`
+placeholder sentinel is gone, replaced by `ErrAlfredNotInstalled` (ADR-0001 A5).
 
 ---
 

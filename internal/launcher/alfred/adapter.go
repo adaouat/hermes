@@ -2,7 +2,6 @@ package alfred
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -20,10 +19,6 @@ const (
 	iconNote     = iconBasePath + "/AlertNoteIcon.icns"
 	iconClock    = iconBasePath + "/Clock.icns"
 )
-
-// ErrInstallNotImplemented is returned by Adapter.Install and Verify until
-// the real implementation lands in roadmap M4.
-var ErrInstallNotImplemented = errors.New("alfred: install not implemented yet (see roadmap M4)")
 
 // Adapter implements launcher.Launcher for Alfred's Script Filter contract.
 type Adapter struct {
@@ -147,12 +142,14 @@ func debugItem(name, path, iconPath string) domain.Item {
 	}
 }
 
-// Install is not implemented until roadmap M4 (the Alfred prefs.json install).
-func (a *Adapter) Install(_ context.Context, _ launcher.InstallOpts) error {
-	return ErrInstallNotImplemented
+// Install writes this workflow's info.plist + icon.png into Alfred's prefs.json-resolved
+// workflows dir (installer.go). Never moves or copies opts.BinaryPath (ADR-0001 A1).
+func (a *Adapter) Install(_ context.Context, opts launcher.InstallOpts) error {
+	return install(opts)
 }
 
-// Verify is not implemented until roadmap M4.
-func (a *Adapter) Verify(_ context.Context, _ launcher.InstallOpts) (launcher.Report, error) {
-	return launcher.Report{}, ErrInstallNotImplemented
+// Verify reports whether the workflow is installed and whether its info.plist has drifted
+// from what opts.Version/opts.BinaryPath currently render (installer.go).
+func (a *Adapter) Verify(_ context.Context, opts launcher.InstallOpts) (launcher.Report, error) {
+	return verify(opts)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/adaouat/hermes/internal/env/envtest"
+	"github.com/adaouat/hermes/internal/iofs/iofstest"
 	"github.com/adaouat/hermes/internal/launcher"
 	"github.com/adaouat/hermes/pkg/domain"
 )
@@ -180,12 +181,13 @@ func TestAdapter_Render_debugItemsIncludeLogFileWhenSet(t *testing.T) {
 	}
 }
 
-func TestAdapter_InstallAndVerifyNotImplemented(t *testing.T) {
+func TestAdapter_InstallPropagatesAlfredNotInstalled(t *testing.T) {
 	a := NewAdapter(envtest.New(nil))
-	if err := a.Install(context.Background(), launcher.InstallOpts{}); !errors.Is(err, ErrInstallNotImplemented) {
-		t.Errorf("Install() error = %v, want ErrInstallNotImplemented", err)
+	opts := launcher.InstallOpts{FS: iofstest.New(nil), Env: envtest.New(map[string]string{"HOME": "/home/x"})}
+	if err := a.Install(context.Background(), opts); !errors.Is(err, ErrAlfredNotInstalled) {
+		t.Errorf("Install() error = %v, want ErrAlfredNotInstalled", err)
 	}
-	if _, err := a.Verify(context.Background(), launcher.InstallOpts{}); !errors.Is(err, ErrInstallNotImplemented) {
-		t.Errorf("Verify() error = %v, want ErrInstallNotImplemented", err)
+	if _, err := a.Verify(context.Background(), opts); !errors.Is(err, ErrAlfredNotInstalled) {
+		t.Errorf("Verify() error = %v, want ErrAlfredNotInstalled", err)
 	}
 }
