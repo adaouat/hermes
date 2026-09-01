@@ -27,6 +27,7 @@ type Adapter struct {
 	version    string
 	logFile    string
 	now        func() time.Time
+	prefsPath  string
 }
 
 // Option configures an Adapter built by NewAdapter.
@@ -55,6 +56,13 @@ func WithClock(now func() time.Time) Option {
 // opened a debug log file.
 func WithLogFile(path string) Option {
 	return func(a *Adapter) { a.logFile = path }
+}
+
+// WithPrefsPath overrides Install/Verify's prefs.json location (ADR-0001 §2.2's `--prefs`
+// escape hatch, wired by cmd/hermes's install.go). Empty (the default) uses
+// defaultPrefsPath.
+func WithPrefsPath(path string) Option {
+	return func(a *Adapter) { a.prefsPath = path }
 }
 
 // NewAdapter returns an Adapter reading debug/detect signals from e.
@@ -145,11 +153,11 @@ func debugItem(name, path, iconPath string) domain.Item {
 // Install writes this workflow's info.plist + icon.png into Alfred's prefs.json-resolved
 // workflows dir (installer.go). Never moves or copies opts.BinaryPath (ADR-0001 A1).
 func (a *Adapter) Install(_ context.Context, opts launcher.InstallOpts) error {
-	return install(opts)
+	return install(a.prefsPath, opts)
 }
 
 // Verify reports whether the workflow is installed and whether its info.plist has drifted
 // from what opts.Version/opts.BinaryPath currently render (installer.go).
 func (a *Adapter) Verify(_ context.Context, opts launcher.InstallOpts) (launcher.Report, error) {
-	return verify(opts)
+	return verify(a.prefsPath, opts)
 }

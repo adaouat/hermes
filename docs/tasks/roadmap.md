@@ -384,7 +384,7 @@ unit-tested with fakes.
     cmd/hermes's job, not installer.go's, per M4's note below).
   - Write `info.plist` + `icon.png` atomically (tmp + `os.Rename`).
   - **Never move/copy the running binary.** **Fixes [risk] destructive install.**
-- [ ] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch). No `--retain` flag: ADR-0001 A2 removes it immediately with no deprecation period (this line originally said otherwise; corrected to match the ADR - see M4's note below).
+- [x] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch). No `--retain` flag: ADR-0001 A2 removes it immediately with no deprecation period (this line originally said otherwise; corrected to match the ADR - see M4's note below). Lands as `cmd/hermes/install.go` (package `main`), not `internal/cmd`, continuing M3's precedent.
 - [ ] `internal/cmd/doctor.go` — for each (or specified) product, prints paths searched / matched / regex applied / which recents file was used. Uses `forge/ui` status helpers + `Spinner.Step` for the structured output. Stdout, not Alfred JSON.
 
 **Note (2026-08-30):** M4 in progress. `HERMES_DEBUG` landed first: `resolveDebug` (new
@@ -441,11 +441,35 @@ disk access scoped to `t.TempDir()`, which is how `installer_test.go` exercises 
 path; one test (`TestAdapter_InstallAndVerifyDelegateToInstaller`) needed the real `iofs.New()`
 rather than the usual `iofstest` fake, since `Verify`'s fake-backed reads can't observe what
 `Install`'s real-disk writes produced. `opts.BinaryPath` resolution (`os.Executable()` +
-`EvalSymlinks`) stays the composition root's job (`cmd/hermes`, not yet built) - consistent
-with `iofs.New()`/`env.New()` only ever being constructed there. `InstallOpts.Force` is
-accepted but unused for now (no task text specifies its semantics yet; left for `install.go`).
-`Adapter.Install`/`Verify` now delegate to `install`/`verify`; the `ErrInstallNotImplemented`
-placeholder sentinel is gone, replaced by `ErrAlfredNotInstalled` (ADR-0001 A5).
+`EvalSymlinks`) stays the composition root's job (`cmd/hermes/install.go`, built next) -
+consistent with `iofs.New()`/`env.New()` only ever being constructed there. `InstallOpts.Force`
+is accepted but unused for now (no task text specifies its semantics yet). `Adapter.Install`/
+`Verify` now delegate to `install`/`verify`; the `ErrInstallNotImplemented` placeholder
+sentinel is gone, replaced by `ErrAlfredNotInstalled` (ADR-0001 A5).
+
+`cmd/hermes/install.go` landed next, reusing root's existing persistent `--launcher` flag
+(already resolved into `rt.launcher` by `PersistentPreRunE`) rather than redeclaring it -
+`hermes install --launcher alfred` flows through the same `resolveLauncher` precedence chain
+every other command uses. `--check` and `--verify` both call `Adapter.Verify` and print its
+`Report`, but differ in *when*: `--check` calls it instead of `Install` (a pure, non-mutating
+preflight - nothing is written even if drift is found), while `--verify` calls it *after*
+`Install` has already written (a post-install confirmation) - the roadmap's "dry-run drift
+report" vs. "post-install validation" phrasing read literally, not two names for one
+operation. `cmd.MarkFlagsMutuallyExclusive("check", "verify")` rejects passing both.
+`--prefs <path>`, being alfred-specific, doesn't fit `launcher.InstallOpts` (a frozen,
+cross-launcher struct per ADR-0002 - adding an Alfred-only field there would leak launcher
+specifics into the neutral contract): `installer.go`'s `install`/`verify` gained a leading
+`prefsPathOverride string` parameter instead, exposed as `alfred.WithPrefsPath` (mirroring the
+existing `WithLogFile`/`WithVersion` construction-time Options). `install.go`'s `targetLauncher`
+applies it by constructing a fresh `alfred.Adapter` when the resolved launcher is alfred and
+`--prefs` is set (the shared registry's adapter has no setter - Options are construction-time
+only by design), and is a silent no-op for any other resolved launcher, since `--prefs` has no
+meaning for `raycast`/`generic`. `ErrAlfredNotInstalled` maps to `exitcode.Config` with an
+Alfred-install-page pointer via `forgeexit.WrapSummary` (ADR-0001 A5), the same
+sentinel-exposed-at-a-package-boundary pattern `search.go`/`open.go` already use for
+`jetbrains.NotFoundError` → `exitNotFound`. Manually smoke-tested end to end against a fake
+`$HOME` (never the real one) - `--check` on nothing installed, `install`, `--verify` showing no
+drift, and `plutil -lint` on the written `info.plist` - all passed.
 
 ---
 

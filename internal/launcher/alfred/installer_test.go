@@ -32,7 +32,7 @@ func TestInstall_writesInfoPlistAndIconAtomicallyUnderRealTempDir(t *testing.T) 
 		Out:        &out,
 	}
 
-	if err := install(opts); err != nil {
+	if err := install("", opts); err != nil {
 		t.Fatalf("install(): %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestInstall_neverTouchesTheRunningBinary(t *testing.T) {
 	var out bytes.Buffer
 
 	opts := launcher.InstallOpts{Version: "3.0.0", BinaryPath: binary, FS: fs, Env: e, Out: &out}
-	if err := install(opts); err != nil {
+	if err := install("", opts); err != nil {
 		t.Fatalf("install(): %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestInstall_dryRunWritesNothing(t *testing.T) {
 	var out bytes.Buffer
 
 	opts := launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/opt/homebrew/bin/hermes", DryRun: true, FS: fs, Env: e, Out: &out}
-	if err := install(opts); err != nil {
+	if err := install("", opts); err != nil {
 		t.Fatalf("install(): %v", err)
 	}
 
@@ -129,9 +129,33 @@ func TestInstall_missingPrefsJSONReturnsErrAlfredNotInstalled(t *testing.T) {
 	e := envtest.New(map[string]string{"HOME": tmp})
 	var out bytes.Buffer
 
-	err := install(launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/bin/hermes", FS: fs, Env: e, Out: &out})
+	err := install("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/bin/hermes", FS: fs, Env: e, Out: &out})
 	if !errors.Is(err, ErrAlfredNotInstalled) {
 		t.Errorf("install() error = %v, want ErrAlfredNotInstalled", err)
+	}
+}
+
+func TestInstall_prefsPathOverrideWinsOverDefault(t *testing.T) {
+	tmp := t.TempDir()
+	overrideRoot := filepath.Join(tmp, "override-root")
+	overridePath := filepath.Join(tmp, "override-prefs.json")
+	if err := os.WriteFile(overridePath, []byte(fakePrefsJSONFor(overrideRoot)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// No prefs.json at the default HOME-based location - proves the override, not the
+	// default, is what install() actually read.
+	fs := iofstest.New(map[string]string{overridePath: fakePrefsJSONFor(overrideRoot)})
+	e := envtest.New(map[string]string{"HOME": filepath.Join(tmp, "unrelated-home")})
+	var out bytes.Buffer
+
+	if err := install(overridePath, launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/bin/hermes", FS: fs, Env: e, Out: &out}); err != nil {
+		t.Fatalf("install(): %v", err)
+	}
+
+	target := filepath.Join(overrideRoot, "workflows", bundleID)
+	if _, err := os.Stat(filepath.Join(target, "info.plist")); err != nil {
+		t.Errorf("info.plist not written under the override root: %v", err)
 	}
 }
 
@@ -144,7 +168,7 @@ func TestVerify_notInstalledReportsFalse(t *testing.T) {
 	})
 	e := envtest.New(map[string]string{"HOME": tmp})
 
-	report, err := verify(launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/bin/hermes", FS: fs, Env: e})
+	report, err := verify("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/bin/hermes", FS: fs, Env: e})
 	if err != nil {
 		t.Fatalf("verify(): %v", err)
 	}
@@ -175,7 +199,7 @@ func TestVerify_installedNoDriftMatchesFreshInstall(t *testing.T) {
 	})
 	e := envtest.New(map[string]string{"HOME": tmp})
 
-	report, err := verify(launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/opt/homebrew/bin/hermes", FS: fs, Env: e})
+	report, err := verify("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/opt/homebrew/bin/hermes", FS: fs, Env: e})
 	if err != nil {
 		t.Fatalf("verify(): %v", err)
 	}
@@ -203,7 +227,7 @@ func TestVerify_driftWhenInstalledVersionDiffers(t *testing.T) {
 	})
 	e := envtest.New(map[string]string{"HOME": tmp})
 
-	report, err := verify(launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/opt/homebrew/bin/hermes", FS: fs, Env: e})
+	report, err := verify("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: "/opt/homebrew/bin/hermes", FS: fs, Env: e})
 	if err != nil {
 		t.Fatalf("verify(): %v", err)
 	}

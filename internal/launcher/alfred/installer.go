@@ -44,6 +44,15 @@ func workflowTarget(prefsRoot string) string {
 	return filepath.Join(prefsRoot, "workflows", bundleID)
 }
 
+// resolvePrefsPath honors the WithPrefsPath escape hatch when set, else falls back to
+// defaultPrefsPath.
+func resolvePrefsPath(override string, e env.Env) string {
+	if override != "" {
+		return override
+	}
+	return defaultPrefsPath(e)
+}
+
 // readPrefsRoot reads prefs.json's "current" key: Alfred's active preferences root, under
 // which every workflow lives (docs/specs/original-spec.md §5.6.2).
 func readPrefsRoot(fs iofs.FS, prefsPath string) (string, error) {
@@ -114,8 +123,8 @@ func writeFileAtomically(path string, data []byte, perm os.FileMode) error {
 // read-only port (see internal/iofs's doc comment) - there is no write-side abstraction to
 // go through, and testing.md's determinism rule allows real disk access scoped to
 // t.TempDir(), which is how installer_test.go exercises this path.
-func install(opts launcher.InstallOpts) error {
-	prefsRoot, err := readPrefsRoot(opts.FS, defaultPrefsPath(opts.Env))
+func install(prefsPathOverride string, opts launcher.InstallOpts) error {
+	prefsRoot, err := readPrefsRoot(opts.FS, resolvePrefsPath(prefsPathOverride, opts.Env))
 	if err != nil {
 		return err
 	}
@@ -151,8 +160,8 @@ func install(opts launcher.InstallOpts) error {
 
 // verify reports whether the workflow is installed and, if so, whether its info.plist
 // matches what the current version/binary would render (ADR-0001 A3/A4 drift detection).
-func verify(opts launcher.InstallOpts) (launcher.Report, error) {
-	prefsRoot, err := readPrefsRoot(opts.FS, defaultPrefsPath(opts.Env))
+func verify(prefsPathOverride string, opts launcher.InstallOpts) (launcher.Report, error) {
+	prefsRoot, err := readPrefsRoot(opts.FS, resolvePrefsPath(prefsPathOverride, opts.Env))
 	if err != nil {
 		return launcher.Report{}, err
 	}
