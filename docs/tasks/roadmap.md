@@ -385,7 +385,7 @@ unit-tested with fakes.
   - Write `info.plist` + `icon.png` atomically (tmp + `os.Rename`).
   - **Never move/copy the running binary.** **Fixes [risk] destructive install.**
 - [x] `internal/cmd/install.go` flags: `--launcher`, `--check` (dry-run drift report), `--verify` (post-install validation), `--prefs <path>` (escape hatch). No `--retain` flag: ADR-0001 A2 removes it immediately with no deprecation period (this line originally said otherwise; corrected to match the ADR - see M4's note below). Lands as `cmd/hermes/install.go` (package `main`), not `internal/cmd`, continuing M3's precedent.
-- [ ] `internal/cmd/doctor.go` — for each (or specified) product, prints paths searched / matched / regex applied / which recents file was used. Uses `forge/ui` status helpers + `Spinner.Step` for the structured output. Stdout, not Alfred JSON.
+- [x] `internal/cmd/doctor.go` — for each (or specified) product, prints paths searched / matched / regex applied / which recents file was used. Uses `forge/ui` status helpers for the structured output (not `Spinner.Step` - see M4's note below). Stdout, not Alfred JSON. Lands as `cmd/hermes/doctor.go`, not `internal/cmd`.
 
 **Note (2026-08-30):** M4 in progress. `HERMES_DEBUG` landed first: `resolveDebug` (new
 `cmd/hermes/debug.go`) implements ADR-0002 O2's flag-wins-else-env-var-presence precedence,
@@ -470,6 +470,44 @@ sentinel-exposed-at-a-package-boundary pattern `search.go`/`open.go` already use
 `jetbrains.NotFoundError` → `exitNotFound`. Manually smoke-tested end to end against a fake
 `$HOME` (never the real one) - `--check` on nothing installed, `install`, `--verify` showing no
 drift, and `plutil -lint` on the written `info.plist` - all passed.
+
+`cmd/hermes/doctor.go` landed last, closing out M4. Its "paths searched / matched" data turned
+out to already exist: `Locator.LocateApplication`/`LocateBin` and
+`Repository.LocateSettingsDirectory` all return a `*NotFoundError` on failure that carries
+`SearchedPaths`/`Names`, and its `Error()` string is a ready-made human explanation - doctor
+just prints it, no new domain-core surface needed for that part. Two pieces genuinely didn't
+exist anywhere: "regex applied" (the per-product settings-directory pattern was a private
+`settingsRegexp` function, used only internally by `LocateSettingsDirectory`) and "which
+recents file was used" (`RecentProjects()` picks one of four candidates - three files plus
+Fleet's glob - but only ever returned the *parsed project list*, discarding which candidate
+won). Fixed with the smallest addition that kept both existing, tested methods' behavior
+byte-for-byte unchanged: `settingsRegexp` → exported `SettingsRegexp` (a pure function, trivial
+rename); `RecentProjects`'s inline candidate-file loop extracted into a private
+`locateRecentsFile` helper, reused by both `RecentProjects` (unchanged behavior, still returns
+parsed paths) and a new `Repository.RecentsFiles() ([]string, error)` (returns the winning
+candidate's path(s) unparsed - a slice because Fleet's glob can match more than one file).
+Both new/changed pieces got their own test coverage per `testing.md`'s discipline; the full
+`internal/jetbrains` suite still passes unmodified, confirming no behavior regression in
+`RecentProjects`.
+
+**Deviation from this task's own wording:** built the per-product status line with
+`ui.Success`/`ui.Warn` directly instead of `Spinner.Step`. `Step` always renders a green
+checkmark (it's documented for "a step whose work already completed successfully"), which
+would show a not-found product - the normal, expected state for most users on most of the 19
+products - with the same green check as a found one. `ui.Warn` (the existing "!"-prefixed,
+yellow, non-fatal-notice helper `Skip` already uses elsewhere in `forge/ui`) fits a "not
+installed" report far better and was already available as one of the "forge/ui status
+helpers" this task names. Manually smoke-tested against a fake `$HOME` with a real PhpStorm
+fixture: found product shows the full application/binary/settings/regex/recents-file report
+in green; a not-installed product (Aqua) shows the `NotFoundError` text in yellow. One
+incidental discovery, not a bug: the smoke test's `binary:` line resolved to this machine's
+real JetBrains Toolbox script rather than the fixture's fake binary, because `LocateBin`
+correctly fell through to the real `$PATH` (the smoke test didn't isolate it) before ever
+reaching the fixture's `Contents/MacOS` fallback - exactly the documented precedence working
+as designed, not a doctor.go defect.
+
+**M4 complete.** All four tasks landed: `HERMES_DEBUG`, the Alfred installer, `install.go`,
+`doctor.go`.
 
 ---
 

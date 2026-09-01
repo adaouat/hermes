@@ -195,3 +195,96 @@ func TestRepository_RecentProjects_propagatesSettingsDirError(t *testing.T) {
 		t.Fatalf("RecentProjects() error = %v, want *NotFoundError", err)
 	}
 }
+
+func TestRepository_RecentsFiles(t *testing.T) {
+	const settingsDir = "/home/x/Library/Preferences/PhpStorm2024.1"
+
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  []string
+	}{
+		{
+			name: "prefers recentProjectDirectories.xml",
+			files: map[string]string{
+				settingsDir + "/other.txt":                            "",
+				settingsDir + "/options/recentProjectDirectories.xml": "",
+				settingsDir + "/options/recentProjects.xml":           "",
+			},
+			want: []string{settingsDir + "/options/recentProjectDirectories.xml"},
+		},
+		{
+			name: "falls back to recentProjects.xml",
+			files: map[string]string{
+				settingsDir + "/other.txt":                  "",
+				settingsDir + "/options/recentProjects.xml": "",
+			},
+			want: []string{settingsDir + "/options/recentProjects.xml"},
+		},
+		{
+			name: "falls back to recentSolutions.xml",
+			files: map[string]string{
+				settingsDir + "/other.txt":                   "",
+				settingsDir + "/options/recentSolutions.xml": "",
+			},
+			want: []string{settingsDir + "/options/recentSolutions.xml"},
+		},
+		{
+			name: "nil when nothing present and not Fleet",
+			files: map[string]string{
+				settingsDir + "/other.txt":   "",
+				settingsDir + "/another.txt": "",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := envtest.New(map[string]string{"HOME": "/home/x"})
+			r := NewRepository(iofstest.New(tc.files), e, domain.PhpStorm, ProductDetails{PreferencePrefix: "PhpStorm"})
+			got, err := r.RecentsFiles()
+			if err != nil {
+				t.Fatalf("RecentsFiles(): %v", err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("RecentsFiles() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepository_RecentsFiles_fleetGlobReturnsEveryMatch(t *testing.T) {
+	const settingsDir = "/home/x/Library/Application Support/JetBrains/Fleet"
+	files := map[string]string{
+		settingsDir + "/other.txt":                           "",
+		settingsDir + "/backend/p1/trusted-paths.xml":        "",
+		settingsDir + "/backend/p2/nested/trusted-paths.xml": "",
+	}
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	r := NewRepository(iofstest.New(files), e, domain.Fleet, ProductDetails{PreferencePrefix: "Fleet"})
+
+	got, err := r.RecentsFiles()
+	if err != nil {
+		t.Fatalf("RecentsFiles(): %v", err)
+	}
+	want := []string{
+		settingsDir + "/backend/p1/trusted-paths.xml",
+		settingsDir + "/backend/p2/nested/trusted-paths.xml",
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("RecentsFiles() = %v, want %v", got, want)
+	}
+}
+
+func TestRepository_RecentsFiles_propagatesSettingsDirError(t *testing.T) {
+	e := envtest.New(map[string]string{"HOME": "/home/x"})
+	r := NewRepository(iofstest.New(nil), e, domain.PhpStorm, ProductDetails{PreferencePrefix: "PhpStorm"})
+
+	_, err := r.RecentsFiles()
+	var notFound *NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Fatalf("RecentsFiles() error = %v, want *NotFoundError", err)
+	}
+}

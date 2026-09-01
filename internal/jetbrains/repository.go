@@ -38,7 +38,7 @@ func NewRepository(fsys iofs.FS, e env.Env, product domain.Product, details Prod
 // locateSettingsDirectory throws on first missing path).
 func (r Repository) LocateSettingsDirectory() (string, error) {
 	paths := settingsSearchPaths(r.Env)
-	re := settingsRegexp(r.Product, r.Details.PreferencePrefix)
+	re := SettingsRegexp(r.Product, r.Details.PreferencePrefix)
 
 	for _, path := range paths {
 		dir := parsePath(path, r.Env)
@@ -90,6 +90,31 @@ func (r Repository) LocateSettingsDirectory() (string, error) {
 	}
 }
 
+// recentsFileCandidates is the legacy precedence order: recentProjectDirectories.xml,
+// then recentProjects.xml, then recentSolutions.xml (Rider). Fleet doesn't use any of
+// these - see fleetTrustedPaths.
+var recentsFileCandidates = []struct {
+	file    string
+	extract func(content, home string) ([]string, error)
+}{
+	{"recentProjectDirectories.xml", ExtractRecentProjectDirectories},
+	{"recentProjects.xml", ExtractRecentProjects},
+	{"recentSolutions.xml", ExtractRecentSolutions},
+}
+
+// locateRecentsFile returns the first recentsFileCandidates entry that exists under
+// settingsDir/options, alongside the extractor that reads it.
+func (r Repository) locateRecentsFile(settingsDir string) (path string, extract func(content, home string) ([]string, error), ok bool) {
+	optionsDir := filepath.Join(settingsDir, "options")
+	for _, c := range recentsFileCandidates {
+		p := filepath.Join(optionsDir, c.file)
+		if r.FS.Exists(p) {
+			return p, c.extract, true
+		}
+	}
+	return "", nil, false
+}
+
 // RecentProjects returns the product's recent-project paths, following the legacy
 // precedence: recentProjectDirectories.xml, then recentProjects.xml, then
 // recentSolutions.xml (Rider), then - for Fleet only - any backend/**/trusted-paths.xml.
@@ -98,30 +123,44 @@ func (r Repository) RecentProjects() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	optionsDir := filepath.Join(settingsDir, "options")
 	home := r.Env.Home()
 
-	for _, f := range []struct {
-		file    string
-		extract func(content, home string) ([]string, error)
-	}{
-		{"recentProjectDirectories.xml", ExtractRecentProjectDirectories},
-		{"recentProjects.xml", ExtractRecentProjects},
-		{"recentSolutions.xml", ExtractRecentSolutions},
-	} {
-		path := filepath.Join(optionsDir, f.file)
-		if !r.FS.Exists(path) {
-			continue
-		}
+	if path, extract, ok := r.locateRecentsFile(settingsDir); ok {
 		content, err := r.FS.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("jetbrains: reading %s: %w", path, err)
 		}
-		return f.extract(string(content), home)
+		return extract(string(content), home)
 	}
 
 	if r.Product == domain.Fleet {
 		return r.fleetTrustedPaths(settingsDir, home)
+	}
+
+	return nil, nil
+}
+
+// RecentsFiles returns the recents file(s) RecentProjects would read from, without
+// reading or parsing them - for doctor's "which recents file was used" diagnostic. A nil,
+// nil result means the settings directory exists but has no recents file yet (fresh
+// install, no projects opened). Fleet can return more than one match
+// (backend/**/trusted-paths.xml); every other product returns at most one.
+func (r Repository) RecentsFiles() ([]string, error) {
+	settingsDir, err := r.LocateSettingsDirectory()
+	if err != nil {
+		return nil, err
+	}
+
+	if path, _, ok := r.locateRecentsFile(settingsDir); ok {
+		return []string{path}, nil
+	}
+
+	if r.Product == domain.Fleet {
+		matches, err := r.FS.Glob(filepath.Join(settingsDir, "backend", "**", "trusted-paths.xml"))
+		if err != nil {
+			return nil, fmt.Errorf("jetbrains: globbing fleet trusted paths: %w", err)
+		}
+		return matches, nil
 	}
 
 	return nil, nil
@@ -156,7 +195,7 @@ func settingsSearchPaths(e env.Env) []string {
 	return strings.Split(v, ":")
 }
 
-// settingsRegexp returns the per-product pattern matching a versioned settings
+// SettingsRegexp returns the per-product pattern matching a versioned settings
 // directory basename, ported verbatim from projects.dart's switch on product:
 //   - Fleet has no version suffix, so its preferences directory is matched by a bare
 //     substring search with no anchors.
@@ -164,7 +203,7 @@ func settingsSearchPaths(e env.Env) []string {
 //   - Every other product requires year.quarter (e.g. "2024.1").
 //
 // Neither variant anchors the prefix on the left, matching the legacy behavior exactly.
-func settingsRegexp(product domain.Product, prefix string) *regexp.Regexp {
+func SettingsRegexp(product domain.Product, prefix string) *regexp.Regexp {
 	quoted := regexp.QuoteMeta(prefix)
 	switch product {
 	case domain.Fleet:
