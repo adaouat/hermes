@@ -572,15 +572,55 @@ report `$PATH` reachability correctly.
 
 ### M6 — Distribution & update hint  (≈ 1 day)
 
-- [ ] `.goreleaser.yaml` finalized:
+- [x] `.goreleaser.yaml` finalized:
   - `archives` — darwin arm64 + amd64.
   - `brews` — `bchatard/tap` formula. **Binary name: `hermes`** (with `alfred-jetbrains-cli` as a Brew formula alias for one minor version).
   - `signs` — Apple Developer ID codesign + notarize.
   - `checksum` — SHA256SUMS.
-- [ ] `install.sh` — curl install script (resolves OS/arch, downloads from latest release, verifies SHA, drops in `$HOME/.local/bin`).
-- [ ] mise: works against tagged releases automatically via the `github` backend. Document `mise use github:bchatard/alfred-jetbrains-cli` in README (repo name unchanged per N2).
-- [ ] Drop npm distribution from CHANGELOG / README.
-- [ ] Wire `updatecheck.Hinter` into the cobra root `PersistentPreRunE` — **only when stdout is not the Alfred or Raycast JSON path** (would corrupt the JSON envelope). Allowed on: `install`, `doctor`, `configuration`, `version`. Cache: `~/.cache/hermes/updatecheck.json`, 24h TTL.
+- [x] `install.sh` — curl install script (resolves OS/arch, downloads from latest release, verifies SHA, drops in `$HOME/.local/bin`).
+- [x] mise: works against tagged releases automatically via the `github` backend. Document `mise use github:bchatard/alfred-jetbrains-cli` in README (repo name unchanged per N2).
+- [x] Drop npm distribution from CHANGELOG / README.
+- [x] Wire `updatecheck.Hinter` into the cobra root `PersistentPreRunE` — **only when stdout is not the Alfred or Raycast JSON path** (would corrupt the JSON envelope). Allowed on: `install`, `doctor`, `configuration`, `version`. Cache: `~/.cache/hermes/updatecheck.json`, 24h TTL.
+
+**Note (2026-09-02):** Nearly every bullet above turned out to already be settled by the time
+M6 started, by decisions this exact wording predates — recorded in
+[`docs/adr/0007-distribution-channels.md`](../adr/0007-distribution-channels.md) rather than
+followed literally:
+- `.goreleaser.yml` was already finalized at M0 bootstrap, following the shared
+  `github.com/adaouat/*` distribution template (forge `docs/guides/distribution.md`): a
+  `homebrew_casks` block (not a `brews` formula) publishing to `adaouat/homebrew-tap`, no
+  `bchatard/tap` alias, no `signs` block (ADR-0001 A6 already deferred codesigning),
+  `checksums.txt` (not `SHA256SUMS`). It was already proven working, not just plausible —
+  `v0.1.0` shipped through this exact pipeline (`.github/workflows/release.yml` +
+  `.config/heraut.yml`, heraut-owned release, goreleaser build-only) before this milestone
+  began; see `CHANGELOG.md` and `adaouat/homebrew-tap`'s committed `Casks/hermes.rb`. Nothing
+  needed changing.
+- **No `install.sh`** — neither `bifrost` nor `heraut` (the two sibling `adaouat/*` CLIs on
+  the same forge template) ship one; both document a plain curl-download-chmod-move
+  one-liner in their READMEs instead. hermes's new `README.md` follows the same convention.
+  Judged not worth being the one tool in the family with a bespoke script that duplicates
+  what `mise`/Homebrew already automate for raw (unarchived) binaries.
+- **mise/README** — `README.md` didn't exist at all before this milestone; it's new, with
+  Homebrew/`go install`/mise/curl install sections (mise per `github:adaouat/hermes`, matching
+  ADR-0001 N2/N3's actual repo/module naming, not the roadmap's stale
+  `bchatard/alfred-jetbrains-cli`), a command overview, and Alfred/Raycast install notes.
+  "Drop npm from CHANGELOG/README" needed no action — the auto-generated `CHANGELOG.md`
+  (heraut-owned, commit-derived) has no npm-era content, and there was no README to have any
+  either.
+- **`updatecheck.Hinter` wiring** already existed since M0/M3 (`cmd/hermes/root.go`'s
+  `jsonOutputCommands` gate, added in M3, sat on top of an unconditional M0 `updateHint`
+  call) — M6's actual work was simplifying it to use forge's own `Hinter.PostRun()` and
+  `updatecheck.CacheFile("hermes")` helpers (matching `bifrost`/`heraut`'s exact idiom)
+  instead of hand-rolled dev-version/opt-out/cache-path logic, which also fixed a latent
+  edge case (an ignored `os.UserCacheDir()` error used to silently produce a relative
+  `hermes/update-check.json` path instead of disabling the cache). `--version` output does
+  **not** get the hint and this is deliberately left as-is: cobra's built-in version-flag
+  handling (`fang.WithVersion`) returns before any `Persistent*Run` hook fires, by cobra's
+  own design — confirmed against `spf13/cobra@v1.10.2`'s `Command.execute()`, and neither
+  `bifrost` nor `heraut` work around it either. Smoke-tested end to end against the real
+  `adaouat/hermes` GitHub repo: a binary built with `-X main.Version=0.0.1` correctly printed
+  the upgrade hint on `doctor` (non-JSON) and correctly stayed silent on `search --launcher
+  generic` (JSON-output path).
 
 ---
 
