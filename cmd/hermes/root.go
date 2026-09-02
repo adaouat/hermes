@@ -38,7 +38,7 @@ func rootCmd(version string) *cobra.Command {
 			return rt.init(iofs.New(), env.New(), version, debug, launcherFlag, configFlag, c.ErrOrStderr())
 		},
 	}
-	cmd.PersistentFlags().StringVar(&launcherFlag, "launcher", "", "Launcher output format: alfred, generic (default: auto-detect)")
+	cmd.PersistentFlags().StringVar(&launcherFlag, "launcher", "", "Launcher output format: alfred, raycast, generic (default: auto-detect)")
 	cmd.PersistentFlags().StringVar(&configFlag, "config", "", "Path to a jb_custom_config-shaped JSON file (overrides jb_custom_config)")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "Verbose logging, mirrored to a temp file (or set HERMES_DEBUG)")
 

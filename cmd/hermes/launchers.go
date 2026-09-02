@@ -5,6 +5,7 @@ import (
 	"github.com/adaouat/hermes/internal/launcher"
 	"github.com/adaouat/hermes/internal/launcher/alfred"
 	"github.com/adaouat/hermes/internal/launcher/generic"
+	"github.com/adaouat/hermes/internal/launcher/raycast"
 )
 
 // newLauncherRegistry builds the Registry every launcher-aware command reads from:
@@ -14,5 +15,6 @@ func newLauncherRegistry(version string, e env.Env, logFile string) *launcher.Re
 	return launcher.NewRegistry(
 		generic.NewAdapter(),
 		alfred.NewAdapter(e, alfred.WithVersion(version), alfred.WithLogFile(logFile)),
+		raycast.NewAdapter(),
 	)
 }

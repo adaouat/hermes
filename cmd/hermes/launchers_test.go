@@ -26,3 +26,20 @@ func TestNewLauncherRegistry_defaultIsGeneric(t *testing.T) {
 		t.Errorf("Default() = %q, want %q", got, "generic")
 	}
 }
+
+func TestNewLauncherRegistry_detectsRaycast(t *testing.T) {
+	r := newLauncherRegistry("1.2.3", envtest.New(nil), "")
+
+	got, ok := r.Detect(envtest.New(map[string]string{"RAYCAST_VERSION": "1.80.0"}))
+	if !ok || got.Name() != "raycast" {
+		t.Errorf("Detect(RAYCAST_VERSION set) = (%v, %v), want (raycast, true)", got, ok)
+	}
+}
+
+func TestNewLauncherRegistry_getRaycast(t *testing.T) {
+	r := newLauncherRegistry("1.2.3", envtest.New(nil), "")
+	l, ok := r.Get("raycast")
+	if !ok || l.Name() != "raycast" {
+		t.Errorf("Get(%q) = (%v, %v), want (raycast, true)", "raycast", l, ok)
+	}
+}
