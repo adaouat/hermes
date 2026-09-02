@@ -515,8 +515,8 @@ as designed, not a doctor.go defect.
 
 **Objective:** ship the Go-side contract for Raycast. The TypeScript extension itself stays out of scope.
 
-- [ ] `internal/launcher/raycast/adapter.go` — implements `Launcher`. `Detect()` checks for any `RAYCAST_*` env vars.
-- [ ] `internal/launcher/raycast/render.go` — emits typed JSON the TS extension consumes. Schema documented in `docs/adr/0005-raycast-extension-architecture.md` and frozen. Example shape:
+- [x] `internal/launcher/raycast/adapter.go` — implements `Launcher`. `Detect()` checks for any `RAYCAST_*` env vars.
+- [x] `internal/launcher/raycast/render.go` — emits typed JSON the TS extension consumes. Schema documented in `docs/adr/0005-raycast-extension-architecture.md` and frozen. Example shape:
   ```json
   {
     "items": [
@@ -532,9 +532,41 @@ as designed, not a doctor.go defect.
     ]
   }
   ```
-- [ ] `internal/launcher/raycast/installer.go` — `Install` is a no-op that prints the Raycast Store URL + verifies the binary is on `$PATH`. `Verify` checks `$PATH`, reports drift if the binary isn't reachable.
-- [ ] Reserve `extensions/raycast/` directory with a `README.md` describing the JSON contract (no TS code yet).
-- [ ] Golden test: Raycast JSON output for a fixture domain.Item.
+- [x] `internal/launcher/raycast/installer.go` — `Install` is a no-op that prints the Raycast Store URL + verifies the binary is on `$PATH`. `Verify` checks `$PATH`, reports drift if the binary isn't reachable.
+- [x] Reserve `extensions/raycast/` directory with a `README.md` describing the JSON contract (no TS code yet).
+- [x] Golden test: Raycast JSON output for a fixture domain.Item.
+
+**Note (2026-09-02):** Implemented bottom-up, same order as M2's Alfred adapter:
+`render.go` (golden-tested against `testdata/search_basic.json`) → `installer.go` → 
+`adapter.go` wiring both together, then `cmd/hermes/launchers.go` registered
+`raycast.NewAdapter()` into the registry alongside alfred/generic — without this, `--launcher
+raycast`/`HERMES_LAUNCHER=raycast`/auto-detect would all fail to resolve despite the adapter
+existing (same gap M2's note flagged for Alfred, closed here in the same milestone rather
+than deferred). `root.go`'s `--launcher` flag help text, which still listed only
+`alfred, generic`, was fixed alongside it. Two decisions needed resolving before
+implementation, both recorded in ADR-0005 rather than followed as originally written:
+(1) **Detect() signal** — ADR-0002 O1's literal "`RAYCAST_*`" wording would require
+`env.Env` to enumerate/prefix-match keys, a capability it doesn't have (`Lookup`/`Home`/`Path`
+only) and would serve exactly one caller; user-approved resolution: check a single
+`RAYCAST_VERSION` var via the existing `Lookup`, mirroring Alfred's own single-var `Detect()`
+exactly. Real Raycast doesn't auto-inject env vars into a spawned child process the way Alfred
+does, so this also means the future TS extension must set `RAYCAST_VERSION` itself before
+invoking hermes — documented in `extensions/raycast/README.md`, not something hermes can rely
+on a host platform to guarantee. (2) **The JSON shape gained one field beyond the roadmap's
+own illustrative example**: `actions[].isModernBinary`. The Alfred workflow's open script
+(`assets/info.plist.tmpl`) already branches on this exact field (`domain.Item.IsModernBinary`)
+to choose `open -na <bin> --args <path>` vs. a direct exec; the Raycast extension needs the
+same branch to invoke the binary correctly and has no other way to derive it, so this was
+judged a correctness requirement, not scope creep. `Install`/`Verify` report `$PATH`
+reachability (`filepath.Dir(opts.BinaryPath)` checked against `opts.Env.Path()`) since Raycast
+has no bundle to write; the "Raycast Store URL" the roadmap names doesn't exist yet (extension
+unpublished, out of scope per §7), so `installer.go`'s output points at
+`extensions/raycast/README.md` instead of a fabricated Store listing. Manually smoke-tested
+end to end against a fake `$HOME`: `search --launcher raycast` and
+`RAYCAST_VERSION=... search` (auto-detect) both reach the same `jetbrains.Service.Search` path
+Alfred/generic already exercise (confirmed by an identical not-found error, unrelated to
+launcher routing); `install --launcher raycast --check`/`install --launcher raycast` both
+report `$PATH` reachability correctly.
 
 ---
 
