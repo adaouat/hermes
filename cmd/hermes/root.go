@@ -1,9 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/spf13/cobra"
 
 	"github.com/adaouat/forge/updatecheck"
@@ -42,29 +39,27 @@ func rootCmd(version string) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&configFlag, "config", "", "Path to a jb_custom_config-shaped JSON file (overrides jb_custom_config)")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "Verbose logging, mirrored to a temp file (or set HERMES_DEBUG)")
 
-	cmd.PersistentPostRunE = func(c *cobra.Command, _ []string) error {
+	// Hinter.PostRun() already gates on version=="dev" and the OptOutEnv var (forge
+	// updatecheck.Hinter's own doc comment); jsonOutputCommands is the one gate that's
+	// hermes-specific (Alfred/Raycast/generic all read stdout as a JSON envelope, so the
+	// hint - like any stderr banner - must never fire there even though it wouldn't
+	// corrupt stdout directly, since it can still surface in a debugger panel).
+	hinter := updatecheck.Hinter{
+		Repo:      "adaouat/hermes",
+		Bin:       "hermes",
+		Module:    "github.com/adaouat/hermes/cmd/hermes",
+		Current:   version,
+		CacheFile: updatecheck.CacheFile("hermes"),
+		OptOutEnv: "HERMES_CHECK_UPDATE",
+	}
+	cmd.PersistentPostRunE = func(c *cobra.Command, args []string) error {
 		if jsonOutputCommands[c.Name()] {
 			return nil
 		}
-		updateHint(c, version)
-		return nil
+		return hinter.PostRun()(c, args)
 	}
 
 	cmd.AddCommand(newSearchCmd(rt), newAllCmd(rt), newOpenCmd(rt), newConfigurationCmd(rt), newInstallCmd(rt, version), newDoctorCmd(rt))
 
 	return cmd
-}
-
-func updateHint(c *cobra.Command, version string) {
-	if version == "dev" || os.Getenv("HERMES_CHECK_UPDATE") == "false" {
-		return
-	}
-	cache, _ := os.UserCacheDir()
-	updatecheck.Hinter{
-		Repo:      "adaouat/hermes",
-		Bin:       "hermes",
-		Module:    "github.com/adaouat/hermes/cmd/hermes",
-		Current:   version,
-		CacheFile: filepath.Join(cache, "hermes", "update-check.json"),
-	}.Print(c.Context(), c.ErrOrStderr())
 }
