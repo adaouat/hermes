@@ -24,6 +24,28 @@ jobs:
       - name: Build
         run: go build ./cmd/hermes/
 
+  # hermes's domain (Alfred/Raycast/JetBrains .app bundles) is macOS-only, but the `ci`/
+  # `build` jobs above run on ubuntu-latest — nothing so far actually builds or tests on the
+  # real target OS (roadmap M7). macos-15/-intel are the current generation still shipping an
+  # Intel image (GA'd through Fall 2027); macos-26/-intel is the latest (GA since 2026-02).
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel, macos-26, macos-26-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+      - name: Setup Mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - name: Test
+        run: go test ./...
+      - name: Build
+        run: go build ./cmd/hermes/
+
   # The reusable `ci` job only runs golangci-lint, but all linting is configured in hk
   # (.config/hk/config.pkl) — actionlint, yamlfmt, typos, pkl, go fmt, … — and the local
   # pre-commit hook only sees staged files, so those never reach CI. Run the full hk set
