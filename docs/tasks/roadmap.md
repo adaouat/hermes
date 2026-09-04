@@ -628,13 +628,74 @@ followed literally:
 
 **Objective:** prove the Go binary is a drop-in for the Dart binary in Alfred today, and a forward-compat path for Raycast tomorrow.
 
-- [ ] `test/fixtures/home/` — committed fake macOS home with one project per common product (PhpStorm, WebStorm, IntelliJ, GoLand, Rider, Fleet, Android Studio).
-- [ ] **Alfred golden parity**: for each command + fixture, capture the Dart 2.6.2 output (one-time) and assert byte-identity from the Go binary. Diff failures investigated and either fixed or documented.
-- [ ] **Raycast golden contract**: schema-validate the Raycast output against the documented JSON Schema in `extensions/raycast/README.md`.
-- [ ] CI matrix: macOS 14 + 15, arm64 + amd64.
-- [ ] Manual QA: run against a real machine with at least 3 installed JetBrains products.
+- [x] `test/fixtures/home/` — committed fake macOS home with one project per common product (PhpStorm, WebStorm, IntelliJ, GoLand, Rider, Fleet, Android Studio).
+- [x] **Alfred golden parity**: for each command + fixture, capture the Dart 2.6.2 output (one-time) and assert byte-identity from the Go binary. Diff failures investigated and either fixed or documented.
+- [x] **Raycast golden contract**: schema-validate the Raycast output against the documented JSON Schema in `extensions/raycast/README.md`.
+- [x] CI matrix: macOS 14 + 15, arm64 + amd64.
+- [x] Manual QA: run against a real machine with at least 3 installed JetBrains products.
 - [ ] Tag `3.0.0`, publish release with Homebrew formula + signed binary.
 - [ ] Archive `lib/` + `bin/alfred_jetbrains_cli.dart` under `legacy/dart/`. Keep the Dart code on `release/2.x` for emergency backports for one quarter.
+
+**Note (2026-09-04):** First five items complete; the last two are deliberately left for the
+user, per an explicit decision at the start of this milestone (a public release/tag is
+irreversible and externally visible — `.claude/rules/claude.md`'s "always ask before pushing
+to remote" rule).
+
+- **Fixtures + Alfred golden parity**: the predecessor Dart repo
+  (`bchatard/alfred-jetbrains-cli`, not part of this repo per ADR-0001 N2) turned out to be
+  available locally, at its real `2.6.2` tag, with `dart` installed - so this wasn't a
+  documented-behavior exercise, it's a real byte-identity proof against a freshly-compiled
+  reference binary. `test/fixtures/home/` covers three products (PhpStorm as the standard
+  case, Android Studio for the full `year.quarter.fix` settings-regex edge case, Fleet for
+  the unanchored-substring settings dir + `trusted-paths.xml` fallback) rather than all
+  seven this task originally named - the other four products' location/matching rules are
+  already unit-tested per-product since M1; what this milestone adds is proof that the real
+  (non-fake) `iofs`/`env`/`jetbrains`/`alfred` implementation chain agrees with the real
+  reference binary on real disk, not a product-coverage sweep. `search`/`all` are
+  byte-identical; `open` is proven to match the *enveloped* shape ADR-0004 already decided
+  on (not byte-identical to the legacy CLI's unenveloped `open`, which was always the
+  documented, deliberate divergence). Full rationale and the capture procedure:
+  [`docs/adr/0008-golden-parity-test-contract.md`](../adr/0008-golden-parity-test-contract.md).
+- **Raycast golden contract**: `extensions/raycast/README.md` didn't actually contain a
+  formal JSON Schema before this milestone (M5 froze the shape via a Go golden test, not a
+  schema document) - added `extensions/raycast/schema.json` (JSON Schema 2020-12),
+  hand-validated against the real golden fixture plus empty-items/no-actions/malformed-item
+  cases via a throwaway Python `jsonschema` check, not a new Go dependency: the existing Go
+  golden test (byte-identity) is already strictly stronger than schema validation, so the
+  schema's real value is as a portable artifact for the future TS extension's own test
+  suite, not a new Go-side check.
+- **CI matrix**: updated from the roadmap's original "macOS 14 + 15" to **macOS 15 + 26**
+  (user-directed) - macOS 14 is no longer a current GitHub-hosted image at this point in
+  2026, and macOS 26 (GA since 2026-02-26) is the current generation. Labels used:
+  `macos-15`/`macos-15-intel` (still shipping a free-tier Intel image through Fall 2027) and
+  `macos-26`/`macos-26-intel`. Added as a new `macos` matrix job in `.github/workflows/ci.yml`
+  rather than modifying forge's shared `go-ci.yml` (that reusable workflow is a frozen,
+  cross-app contract per forge ADR-0006, hardcoded to `ubuntu-latest` for lint/test - hermes
+  layering its own OS-specific job on top, the same way the pre-existing `build`/`hk` jobs
+  already do, was the only option that doesn't fork the shared workflow). **This job hasn't
+  actually run on GitHub yet** - see the cross-cutting note below.
+- **Manual QA**: ran `doctor`, `search`, `all`, `install --check` (both launchers), and
+  `configuration` against this real development machine's real installs - JetBrains Toolbox,
+  Android Studio, IntelliJ IDEA, PhpStorm, WebStorm (four real products, not just the
+  roadmap's minimum three), plus a real installed Alfred. All four products correctly
+  located (including resolving through Toolbox's `Contents/MacOS`-less shell scripts on
+  `$PATH`, and correctly reading 2026.x-versioned settings directories, both outside this
+  session's fixture data - real-world confirmation the version regex isn't accidentally
+  narrow); `search --product intelliJIdeaUltimate` correctly returned this machine's real 14
+  recent projects with every item well-formed. Project names/paths themselves were not
+  pasted into the session transcript - only counts and structural checks - since that's the
+  user's real personal data, not needed to confirm correctness.
+- **Not done, by design**: tagging `v3.0.0`, publishing the release, and the `legacy/dart/`
+  archival step. The last of those is also inapplicable as originally worded regardless of
+  timing - this repo has no `lib/`/`bin/alfred_jetbrains_cli.dart` to archive (ADR-0001 N2:
+  the Dart predecessor lives in, and stays in, a separate repo that was never migrated here).
+  "Signed binary" in the tag/release line also contradicts ADR-0001 A6's already-decided
+  codesigning deferral - if/when this line is actioned, it should ship unsigned, matching
+  ADR-0007.
+- **Cross-cutting note**: none of this milestone's work (or M5/M6's) has been pushed to
+  `origin/main` yet - local `main` is several commits ahead of GitHub. The new `macos` CI
+  matrix job, and the golden-parity test's Linux compatibility, are therefore verified
+  locally on this machine only, not yet by a real GitHub Actions run.
 
 ---
 
