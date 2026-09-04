@@ -39,6 +39,11 @@ invoking the binary. There is no Raycast-specific configuration surface.
 
 ## Output shape
 
+The formal contract is [`schema.json`](schema.json) (JSON Schema 2020-12) — validate against
+it directly, or use it for editor/CI tooling in the extension's own test suite once it
+exists. `internal/launcher/raycast/testdata/search_basic.json` is the Go side's byte-identity
+golden fixture for one concrete example (`internal/launcher/raycast/render_test.go`).
+
 ```json
 {
   "items": [

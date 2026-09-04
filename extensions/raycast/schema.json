@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/adaouat/hermes/extensions/raycast/schema.json",
+  "title": "hermes --launcher raycast output",
+  "description": "Frozen contract for `hermes search|all|open --launcher raycast` (docs/adr/0005-raycast-extension-architecture.md). Structurally validates internal/launcher/raycast/render.go's output; internal/launcher/raycast/testdata/search_basic.json is the byte-identity golden fixture for one concrete example.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "subtitle", "icon", "actions"],
+      "properties": {
+        "id": { "type": "string", "description": "Project name (domain.Item.Name)." },
+        "title": { "type": "string", "description": "Same as id." },
+        "subtitle": { "type": "string", "description": "Absolute project path." },
+        "icon": { "type": "string", "description": "Located .app or .icns path." },
+        "actions": {
+          "type": "array",
+          "description": "Empty when hermes couldn't locate a launchable binary for this item.",
+          "items": { "$ref": "#/$defs/action" }
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "binary", "path", "isModernBinary"],
+      "properties": {
+        "type": { "const": "open" },
+        "binary": { "type": "string", "description": "Absolute path to the JetBrains binary." },
+        "path": { "type": "string", "description": "Absolute project path (same as the parent item's subtitle)." },
+        "isModernBinary": {
+          "type": "boolean",
+          "description": "true: launch via `open -na <binary> --args <path>` (post-2023 DMG layout). false: exec `<binary> <path>` directly."
+        }
+      }
+    }
+  }
+}
