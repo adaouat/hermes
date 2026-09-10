@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/adaouat/forge v0.18.0
+	github.com/adaouat/forge v0.19.0
 	github.com/spf13/cobra v1.10.2
 )
 
