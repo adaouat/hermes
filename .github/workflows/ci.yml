@@ -39,8 +39,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+      # hk has no darwin/amd64 build (only linux, darwin/arm64, windows), so the full
+      # `.config/mise/config.toml` tool set fails `mise install` outright on the Intel macOS
+      # legs. This job only ever runs `go test`/`go build`, so install_args scopes it to just
+      # `go` - a CI-only restriction; local dev and every other job still install the full set.
       - name: Setup Mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install_args: go
       - name: Test
         run: go test ./...
       - name: Build
