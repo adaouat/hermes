@@ -68,7 +68,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Release
-        run: heraut release --version "$VERSION" ${{ inputs.regenerate_changelog && '--regenerate-changelog' || '' }}
+        run: heraut release --set-version "$VERSION" ${{ inputs.regenerate_changelog && '--regenerate-changelog' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
