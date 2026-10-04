@@ -21,4 +21,9 @@ release:
   assets:
     - "dist/hermes_*_darwin_amd64"
     - "dist/hermes_*_darwin_arm64"
+    # homebrew archive — the cask's url.template points at these
+    - "dist/hermes_*_darwin_amd64.tar.gz"
+    - "dist/hermes_*_darwin_arm64.tar.gz"
     - "dist/checksums.txt"
+    - "dist/packslip.sigstore.json"
+    - "dist/*.sbom.json"

@@ -42,7 +42,9 @@ jobs:
       - name: Build binaries
         uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7
         with:
-          version: "~> v2"
+          # Exact pin: 2.18.0–2.18.1 broke GORELEASER_CURRENT_TAG for a not-yet-created tag,
+          # which this build-then-release order always hits (goreleaser#7124).
+          version: "2.18.2"
           args: release --clean --skip=publish,announce,validate
         env:
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
@@ -61,16 +63,34 @@ jobs:
         with:
           subject-checksums: dist/checksums.txt
 
+      # Signs a Sigstore manifest over the raw binaries so mise's packslip backend can verify
+      # them. Written into dist/ (upload: false) because the release `heraut release` creates
+      # is immutable — every asset must be in dist/ before that step. `tag` is explicit:
+      # under workflow_dispatch the action can't infer it.
+      - name: Publish packslip
+        uses: jdx/packslip@87479dfc6443253dff69601cace5fc6ea07e6df5 # v1.4.0
+        with:
+          artifacts: >-
+            dist/hermes_*_darwin_amd64 dist/hermes_*_darwin_arm64
+          bin: hermes
+          tag: ${{ env.VERSION }}
+          out: dist
+          upload: false
+
+      # GITHUB_TOKEN as well as GH_TOKEN: heraut's PR attribution reads GITHUB_TOKEN;
+      # without it those GraphQL calls go unauthenticated and hit the 60/hr limit.
       - name: Preflight check
         run: heraut check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Release
         run: heraut release --set-version "$VERSION" ${{ inputs.regenerate_changelog && '--regenerate-changelog' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Publish Homebrew cask

@@ -2,6 +2,8 @@
 /hermes
 *.test
 /dist
+/completions
+/manpages
 /coverage.out
 
 # IDE

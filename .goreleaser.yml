@@ -1,10 +1,20 @@
+# Raw versioned binaries, goreleaser build-only — heraut creates the GitHub Release.
+# Template: forge docs/guides/goreleaser.sample.yml (see its distribution.md).
 version: 2
 
 project_name: hermes
 
+# completions/ and manpages/ feed the `homebrew` archive below (gitignore both, plus
+# /dist). `completion` (fang) and `man` (forge cli) exist on every cli.Run tool.
 before:
   hooks:
     - go mod tidy
+    - rm -rf completions manpages
+    - mkdir completions manpages
+    - sh -c 'go run ./cmd/hermes completion bash >./completions/hermes.bash'
+    - sh -c 'go run ./cmd/hermes completion zsh >./completions/hermes.zsh'
+    - sh -c 'go run ./cmd/hermes completion fish >./completions/hermes.fish'
+    - sh -c 'go run ./cmd/hermes man | gzip -c >./manpages/hermes.1.gz'
 
 builds:
   - id: hermes
@@ -15,41 +25,77 @@ builds:
     env:
       - CGO_ENABLED=0
     # macOS-only: Alfred and Raycast are both macOS-only (see docs/tasks/roadmap.md §7).
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
+    goos: [darwin]
+    goarch: [amd64, arm64]
     ldflags:
-      - -s -w -X main.Version={{ .Tag }}
+      - -s -w
+      # Mandatory: the updatecheck hint is silent on a "dev" version.
+      - -X main.Version={{ .Tag }}
 
-# Raw versioned binaries, no archive wrapper — the family-wide release model.
-# The version lives in the asset name via this explicit name_template (builds.binary
-# is plain); checksums.txt covers the binary users run. See forge
-# docs/guides/distribution.md.
 archives:
+  # Raw binaries, no tar/zip wrapper (heraut ADR-0013): the user-facing download, and
+  # what mise and curl install. The version lives in the asset name (builds.binary is plain).
   - id: default
     formats:
       - binary
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  # Cask-only archive carrying completions + man page for the static homebrew_casks
+  # fields below. Not advertised as a download; its *.tar.gz must still be listed in
+  # .config/heraut.yml release.assets, or the cask URL 404s.
+  - id: homebrew
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE.md # must exist — a missing file fails the archive step
+      - completions/*
+      - manpages/*
 
 checksum:
-  name_template: checksums.txt
+  name_template: "checksums.txt"
 
-# release.disable: true — goreleaser is build-only in the CI pipeline (heraut ADR-0018).
-# heraut owns GitHub Release creation via `heraut release --set-version`.
+# One SBOM per binary (needs syft on PATH — pin it in .config/mise/config.toml).
+# goreleaser runs syft with a minimal env; if PATH resolves syft's mise shim, the shim
+# re-reads the mise config and fails "not trusted" without these two vars.
+sboms:
+  - id: binaries
+    artifacts: binary
+    env:
+      - "MISE_TRUSTED_CONFIG_PATHS={{ envOrDefault \"MISE_TRUSTED_CONFIG_PATHS\" \"\" }}"
+      - "MISE_YES={{ envOrDefault \"MISE_YES\" \"\" }}"
+
+# Build-only: `heraut release --set-version` creates the GitHub Release (heraut ADR-0018).
 release:
   disable: true
 
-# Homebrew cask. goreleaser is build-only (release.disable + --skip=publish), so it only
-# generates the cask — the release workflow pushes it after `heraut release`. The explicit
-# url.template is required because release.disable means goreleaser can't derive the URL.
+# Homebrew cask. goreleaser only *generates* it (--skip=publish); the release workflow
+# pushes it to the tap after `heraut release` uploads the assets. release.disable means
+# goreleaser can't derive the download URL, hence url.template. completions/manpages are
+# static file references resolved by brew — unlike generate_completions_from_executable,
+# they never run the unsigned binary, which hangs under Gatekeeper.
 homebrew_casks:
   - repository:
       owner: adaouat
       name: homebrew-tap
     directory: Casks
+    ids:
+      - homebrew
     url:
       template: "https://github.com/adaouat/hermes/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: "https://github.com/adaouat/hermes"
     description: "JetBrains IDE project locator for Alfred, Raycast, and other launchers"
+    completions:
+      bash: completions/hermes.bash
+      zsh: completions/hermes.zsh
+      fish: completions/hermes.fish
+    manpages:
+      - manpages/hermes.1.gz
+    # Enabled for hermes: the binaries aren't Developer ID-signed/notarized, so the first run
+    # of a cask install hangs under Gatekeeper. This strips com.apple.quarantine after
+    # install, which bypasses that macOS check — drop it once signing+notarization ships.
+    hooks:
+      post:
+        install: |-
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hermes"]
+          end
