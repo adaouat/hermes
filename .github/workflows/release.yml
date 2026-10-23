@@ -34,20 +34,20 @@ jobs:
       # this job, so this file stays the Sigstore signer of the packslip and attestations.
       - name: Release setup
         id: setup
-        uses: adaouat/forge/.github/actions/release-setup@c9e88f2a13524bd97b63c71da00188463f03386c # v0.19.2
+        uses: adaouat/forge/.github/actions/release-setup@396a89227a4adc006b59f11a4669d0fb3674fca6 # v0.19.6
         with:
           gpg-private-key: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ inputs.version }}
 
       - name: Release build
-        uses: adaouat/forge/.github/actions/release-build@c9e88f2a13524bd97b63c71da00188463f03386c # v0.19.2
+        uses: adaouat/forge/.github/actions/release-build@396a89227a4adc006b59f11a4669d0fb3674fca6 # v0.19.6
         with:
           app: hermes
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release publish
-        uses: adaouat/forge/.github/actions/release-publish@c9e88f2a13524bd97b63c71da00188463f03386c # v0.19.2
+        uses: adaouat/forge/.github/actions/release-publish@396a89227a4adc006b59f11a4669d0fb3674fca6 # v0.19.6
         with:
           app: hermes
           github-token: ${{ secrets.GITHUB_TOKEN }}
