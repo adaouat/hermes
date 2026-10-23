@@ -95,7 +95,7 @@ homebrew_casks:
     # install, which bypasses that macOS check — drop it once signing+notarization ships.
     hooks:
       post:
-        install: |-
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hermes"]
+        install_steps: |-
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/hermes"]
           end
