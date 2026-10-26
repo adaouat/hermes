@@ -146,7 +146,7 @@ func TestRunInstall_prefsOverrideTargetsCustomPath(t *testing.T) {
 }
 
 func TestRunInstall_prefsOverrideIgnoredForNonAlfredLauncher(t *testing.T) {
-	rt := &runtime{launcher: generic.NewAdapter()}
+	rt := &runtime{env: envtest.New(nil), launcher: generic.NewAdapter()}
 
 	if err := runInstall(context.Background(), &bytes.Buffer{}, rt, "3.0.0", false, false, "/some/path.json"); err != nil {
 		t.Fatalf("runInstall() with generic launcher: %v", err)
@@ -179,5 +179,100 @@ func TestNewInstallCmd_executesEndToEnd(t *testing.T) {
 	}
 	if !bytes.Contains(out.Bytes(), []byte("installed alfred workflow to")) {
 		t.Errorf("output = %s, want an install confirmation", out.String())
+	}
+}
+
+// brewLayout mimics a Homebrew cask install under root: the real binary lives in the
+// version-specific root/Caskroom/hermes/<version>/hermes and root/bin/hermes symlinks to it.
+func brewLayout(t *testing.T, root, version string) (bin, versioned string) {
+	t.Helper()
+	versioned = filepath.Join(root, "Caskroom", "hermes", version, "hermes")
+	bin = filepath.Join(root, "bin", "hermes")
+	if err := os.MkdirAll(filepath.Dir(versioned), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(versioned, []byte("hermes "+version), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(bin)
+	if err := os.Symlink(versioned, bin); err != nil {
+		t.Fatal(err)
+	}
+	return bin, versioned
+}
+
+func TestStableBinaryPath(t *testing.T) {
+	root := t.TempDir()
+	bin, versioned := brewLayout(t, root, "0.2.0")
+
+	other := filepath.Join(root, "other", "hermes")
+	if err := os.MkdirAll(filepath.Dir(other), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, []byte("a different hermes build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plain := filepath.Join(root, ".local", "bin", "hermes")
+	if err := os.MkdirAll(filepath.Dir(plain), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plain, []byte("plain hermes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		exe  string
+		path []string
+		want string
+	}{
+		{"invoked via brew bin symlink on PATH", bin, []string{filepath.Dir(bin)}, bin},
+		{"invoked via versioned Caskroom path, brew bin on PATH", versioned, []string{"/usr/bin", filepath.Dir(bin)}, bin},
+		{"different hermes earlier on PATH is skipped", bin, []string{filepath.Dir(other), filepath.Dir(bin)}, bin},
+		{"relative PATH entry is ignored", bin, []string{"bin"}, bin},
+		{"not on PATH falls back to the invoked path, unresolved", bin, nil, bin},
+		{"plain binary on PATH", plain, []string{filepath.Dir(plain)}, plain},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := stableBinaryPath(tc.exe, tc.path)
+			if err != nil {
+				t.Fatalf("stableBinaryPath(): %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("stableBinaryPath() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStableBinaryPath_survivesBrewUpgrade(t *testing.T) {
+	root := t.TempDir()
+	bin, oldVersioned := brewLayout(t, root, "0.2.0")
+
+	recorded, err := stableBinaryPath(oldVersioned, []string{filepath.Dir(bin)})
+	if err != nil {
+		t.Fatalf("stableBinaryPath(): %v", err)
+	}
+
+	_, newVersioned := brewLayout(t, root, "0.2.1")
+	if err := os.RemoveAll(filepath.Dir(oldVersioned)); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := filepath.EvalSymlinks(recorded)
+	if err != nil {
+		t.Fatalf("recorded path %q dangles after upgrade: %v", recorded, err)
+	}
+	wantResolved, err := filepath.EvalSymlinks(newVersioned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != wantResolved {
+		t.Errorf("recorded path %q resolves to %q, want the upgraded %q", recorded, resolved, wantResolved)
 	}
 }

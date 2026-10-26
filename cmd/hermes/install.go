@@ -37,7 +37,11 @@ func newInstallCmd(rt *runtime, version string) *cobra.Command {
 func runInstall(ctx context.Context, w io.Writer, rt *runtime, version string, check, verifyAfter bool, prefsPath string) error {
 	l := targetLauncher(rt.launcher, rt.env, version, prefsPath)
 
-	binary, err := resolvedBinaryPath()
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolving hermes binary path: os.Executable: %w", err)
+	}
+	binary, err := stableBinaryPath(exe, rt.env.Path())
 	if err != nil {
 		return fmt.Errorf("resolving hermes binary path: %w", err)
 	}
@@ -103,14 +107,28 @@ func mapInstallErr(err error) error {
 	return err
 }
 
-func resolvedBinaryPath() (string, error) {
-	exe, err := os.Executable()
+// stableBinaryPath returns the path install records for the running binary exe: the first
+// hermes on path that is the same file as exe, else exe as invoked. Never the
+// symlink-resolved target - under Homebrew that is Caskroom/hermes/<version>/hermes, which
+// `brew upgrade` deletes, whereas bin/hermes survives it (ADR-0009).
+func stableBinaryPath(exe string, path []string) (string, error) {
+	exeInfo, err := os.Stat(exe)
 	if err != nil {
-		return "", fmt.Errorf("os.Executable: %w", err)
+		return "", fmt.Errorf("stat %s: %w", exe, err)
 	}
-	resolved, err := filepath.EvalSymlinks(exe)
+	for _, dir := range path {
+		if !filepath.IsAbs(dir) {
+			continue
+		}
+		candidate := filepath.Join(dir, filepath.Base(exe))
+		info, err := os.Stat(candidate)
+		if err == nil && os.SameFile(exeInfo, info) {
+			return candidate, nil
+		}
+	}
+	abs, err := filepath.Abs(exe)
 	if err != nil {
-		return "", fmt.Errorf("EvalSymlinks(%s): %w", exe, err)
+		return "", fmt.Errorf("absolute path of %s: %w", exe, err)
 	}
-	return resolved, nil
+	return abs, nil
 }
