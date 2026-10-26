@@ -40,7 +40,8 @@ answers.
 - **A1 — Binary handling.** `install --launcher alfred` never copies or moves the running
   binary. `info.plist` is generated with the absolute resolved path
   (`os.Executable()` + `filepath.EvalSymlinks`). brew/mise own the binary; the Alfred
-  workflow shells out to it directly.
+  workflow shells out to it directly. *The resolved-path clause is superseded by ADR-0009,
+  which records a stable, unresolved path.*
 - **A2 — `--retain` flag.** Removed immediately, no deprecation warning. This is a clean
   rewrite; there is no 2.x flag-compatibility promise.
 - **A3 — Drift detection.** `updatecheck.Hinter` runs on non-JSON commands. `install
@@ -48,7 +49,8 @@ answers.
   schema drift.
 - **A4 — Brew prefix variability.** Resolved at `install` time (the live resolved path is
   embedded). Migrating prefixes (e.g. Intel → Apple Silicon) requires re-running `install`;
-  `--verify` flags the drift instead of silently breaking.
+  `--verify` flags the drift instead of silently breaking. *"Resolved path" is superseded by
+  ADR-0009; the path is still embedded at install time.*
 - **A5 — Alfred not installed.** When `~/Library/Application Support/Alfred/prefs.json` is
   missing, exit with `exitcode.Config` and a message that includes a link to Alfred's install
   page.
