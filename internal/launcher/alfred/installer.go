@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"text/template"
 
 	"github.com/adaouat/hermes/internal/env"
@@ -73,10 +74,10 @@ func readPrefsRoot(fs iofs.FS, prefsPath string) (string, error) {
 	return prefs.Current, nil
 }
 
-// renderInfoPlist fills the embedded info.plist template with the resolved binary path and
-// CLI version. ADR-0001 A1: the binary path is always the caller's already-resolved absolute
-// path (os.Executable() + EvalSymlinks, done by the cmd/hermes composition root) - this
-// function never touches the binary itself, only writes its path as text.
+// renderInfoPlist fills the embedded info.plist template with the binary path and CLI
+// version. The binary path is the caller's stable absolute path (ADR-0009, chosen by the
+// cmd/hermes composition root) - this function never touches the binary itself, only writes
+// its path as text.
 func renderInfoPlist(version, binary string) ([]byte, error) {
 	tmpl, err := template.New("info.plist").Parse(infoPlistTmplSource)
 	if err != nil {
@@ -88,6 +89,18 @@ func renderInfoPlist(version, binary string) ([]byte, error) {
 		return nil, fmt.Errorf("rendering info.plist: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// recordedBinaryRe matches the script filter's `{{.Binary}} all` line - the template's only
+// one ending in " all", so its capture is the binary path an installed info.plist runs.
+var recordedBinaryRe = regexp.MustCompile(`<string>(.+) all</string>`)
+
+func recordedBinary(plist []byte) (string, bool) {
+	m := recordedBinaryRe.FindSubmatch(plist)
+	if m == nil {
+		return "", false
+	}
+	return string(m[1]), true
 }
 
 // writeFileAtomically writes data to path via a tmp file in the same directory followed by
@@ -182,7 +195,14 @@ func verify(prefsPathOverride string, opts launcher.InstallOpts) (launcher.Repor
 	}
 
 	report := launcher.Report{Installed: true, Path: target}
-	if !bytes.Equal(want, got) {
+	if recorded, ok := recordedBinary(got); ok && recorded != opts.BinaryPath {
+		if opts.FS.Exists(recorded) {
+			report.Drift = append(report.Drift, fmt.Sprintf("workflow runs %s instead of %s - re-run `hermes install`", recorded, opts.BinaryPath))
+		} else {
+			report.Drift = append(report.Drift, fmt.Sprintf("workflow binary %s no longer exists - re-run `hermes install`", recorded))
+		}
+	}
+	if len(report.Drift) == 0 && !bytes.Equal(want, got) {
 		report.Drift = append(report.Drift, "info.plist differs from the current version/binary - re-run `hermes install`")
 	}
 	return report, nil

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/adaouat/hermes/internal/env/envtest"
@@ -277,4 +278,54 @@ func TestAdapter_InstallAndVerifyDelegateToInstaller(t *testing.T) {
 
 func fakePrefsJSONFor(prefsRoot string) string {
 	return `{"current": "` + prefsRoot + `"}`
+}
+
+func TestVerify_driftWhenRecordedBinaryPathIsStale(t *testing.T) {
+	const stable = "/opt/homebrew/bin/hermes"
+	tests := []struct {
+		name      string
+		recorded  string
+		existing  []string
+		wantDrift string
+	}{
+		{
+			name:      "recorded Caskroom path removed by brew upgrade",
+			recorded:  "/opt/homebrew/Caskroom/hermes/0.2.0/hermes",
+			wantDrift: "/opt/homebrew/Caskroom/hermes/0.2.0/hermes no longer exists - re-run `hermes install`",
+		},
+		{
+			name:      "recorded path exists but is not the stable path",
+			recorded:  "/opt/homebrew/Caskroom/hermes/0.3.0/hermes",
+			existing:  []string{"/opt/homebrew/Caskroom/hermes/0.3.0/hermes"},
+			wantDrift: "/opt/homebrew/Caskroom/hermes/0.3.0/hermes instead of " + stable + " - re-run `hermes install`",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			prefsRoot := filepath.Join(tmp, "Alfred.alfredpreferences")
+			target := filepath.Join(prefsRoot, "workflows", bundleID)
+
+			stale, err := renderInfoPlist("3.0.0", tc.recorded)
+			if err != nil {
+				t.Fatalf("renderInfoPlist(): %v", err)
+			}
+			files := map[string]string{
+				filepath.Join(tmp, "Library/Application Support/Alfred/prefs.json"): fakePrefsJSONFor(prefsRoot),
+				filepath.Join(target, "info.plist"):                                 string(stale),
+			}
+			for _, p := range tc.existing {
+				files[p] = "binary"
+			}
+			e := envtest.New(map[string]string{"HOME": tmp})
+
+			report, err := verify("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: stable, FS: iofstest.New(files), Env: e})
+			if err != nil {
+				t.Fatalf("verify(): %v", err)
+			}
+			if len(report.Drift) != 1 || !strings.Contains(report.Drift[0], tc.wantDrift) {
+				t.Errorf("Drift = %q, want exactly one entry containing %q", report.Drift, tc.wantDrift)
+			}
+		})
+	}
 }

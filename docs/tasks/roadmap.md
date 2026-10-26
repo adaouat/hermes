@@ -697,6 +697,24 @@ to remote" rule).
   matrix job, and the golden-parity test's Linux compatibility, are therefore verified
   locally on this machine only, not yet by a real GitHub Actions run.
 
+### Post-release fixes
+
+- [x] `install` records a stable binary path so the Alfred workflow survives `brew upgrade`
+  (reported against 0.2.1; ships as a patch release).
+
+  **Note:** Root cause confirmed and reproduced in a scratch Caskroom layout: ADR-0001 A1's
+  `EvalSymlinks` recorded `Caskroom/hermes/<version>/hermes`, which `brew upgrade` deletes.
+  ADR-0009 supersedes that clause. `cmd/hermes/install.go`'s `stableBinaryPath` now prefers
+  the `$PATH` entry that is the same file as the running binary (`bin/hermes`), and otherwise
+  uses the path as invoked. Alfred's `verify` now reports a recorded binary that is missing
+  or differs from the stable path. Raycast had the same root cause in a different form: its
+  `$PATH` check looked at the Caskroom dir and always failed for Homebrew users. That is fixed
+  by the same change, with no Raycast code edits. Generic has no install state and was not
+  affected. Cask quarantine/postflight handling (`.goreleaser.yml`) is untouched. Deferred:
+  mise installs still record mise's versioned path, because the shim is not the hermes
+  binary (ADR-0009 Consequences). The template's unquoted `{{.Binary}}` would also break on a
+  binary path containing spaces. That bug predates this fix and is out of scope here.
+
 ---
 
 ## 4. Effort Summary
@@ -758,6 +776,7 @@ Post-3.0 (separate effort, not in this roadmap): publishing the Raycast TS exten
 | 0006 | Asset embedding (`embed.FS` + template)            | M4    |
 | 0007 | Distribution channels (brew tap + mise + curl)     | M6    |
 | 0008 | Golden-parity test contract with Dart 2.6.2        | M7    |
+| 0009 | Stable binary path recorded at install             | post  |
 
 ---
 
