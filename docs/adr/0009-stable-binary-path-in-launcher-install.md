@@ -25,6 +25,20 @@ told hermes is not on `$PATH`.
   For Homebrew that is `bin/hermes`, which survives upgrades. If no `$PATH` entry matches, the
   path as invoked (`os.Executable()`, made absolute, not symlink-resolved) is used. That covers
   a plain binary in `~/.local/bin` or `$GOBIN`.
+- Either result is then routed through a `latest` symlink next to one of its ancestor
+  directories, as long as that leads to the same file. This handles mise. mise's shim on
+  `$PATH` is a link to the mise binary, not to hermes, so the `$PATH` match finds nothing
+  under shims. Under `mise activate` it finds the versioned `installs/<tool>/<version>/hermes`
+  instead. mise's runtime symlink `installs/<tool>/latest` is repointed on every install and
+  uninstall, so `upgrade` and `prune` both leave it valid. The shim itself was rejected for
+  two reasons: it would run mise's version resolution on every Alfred keystroke, and it fails
+  when hermes is declared only in a project `mise.toml`, because Alfred doesn't run in that
+  project. The cost is that `latest` runs the newest *installed* version, which can be newer
+  than one the user pinned globally.
+- The recorded path is written into the workflow's zsh scripts as one shell word, and into
+  the plist as XML text. A path with spaces or other shell metacharacters is single-quoted
+  (`'` becomes `'\''`), then `&`, `<` and `>` are XML-escaped. A path that needs no quoting
+  renders exactly as before, so existing installs report no drift.
 - The path stays absolute and is still embedded at install time, so A1's "never copy or move
   the binary" and A4's "migrating prefixes requires re-running `install`" both still hold.
   Resolving `hermes` through `PATH` at run time inside the workflow script was rejected:
@@ -40,10 +54,10 @@ told hermes is not on `$PATH`.
   path. The Script Filter JSON contract (ADR-0004) is untouched.
 - Workflows installed by ≤ 0.2.1 under Homebrew still record a Caskroom path. `install
   --check` now names it, and the fix is one more `hermes install`.
-- **Known limitation, mise:** mise puts a shim on `$PATH`, not a link to the hermes binary,
-  so no `$PATH` entry is the same file. hermes falls back to mise's versioned
-  `installs/hermes/<version>/hermes` path, which is no worse than before.
-  `install --check` flags it once that version is pruned.
+- mise installs from ≤ 0.2.1 record a versioned `installs/.../<version>/hermes` path, and
+  `install --check` reports it as drift. Relying on `latest` means relying on mise's
+  runtime-symlink layout. If mise ever stops maintaining it, hermes falls back to the
+  versioned path, and `install --check` still catches that path once it goes stale.
 
 ## References
 
