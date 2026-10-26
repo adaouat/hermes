@@ -710,10 +710,12 @@ to remote" rule).
   or differs from the stable path. Raycast had the same root cause in a different form: its
   `$PATH` check looked at the Caskroom dir and always failed for Homebrew users. That is fixed
   by the same change, with no Raycast code edits. Generic has no install state and was not
-  affected. Cask quarantine/postflight handling (`.goreleaser.yml`) is untouched. Deferred:
-  mise installs still record mise's versioned path, because the shim is not the hermes
-  binary (ADR-0009 Consequences). The template's unquoted `{{.Binary}}` would also break on a
-  binary path containing spaces. That bug predates this fix and is out of scope here.
+  affected. Cask quarantine/postflight handling (`.goreleaser.yml`) is untouched. A follow-up
+  in the same patch handles mise: the shim on `$PATH` is the mise binary, so the path is
+  routed through mise's `installs/<tool>/latest` runtime symlink instead (ADR-0009 explains
+  why not the shim). The same follow-up fixes the template's unquoted `{{.Binary}}`, which
+  broke on paths with spaces. The value is now shell-quoted and XML-escaped only when
+  needed, so plain paths render exactly as before. The template file itself is unchanged.
 
 ---
 

@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"text/template"
 
 	"github.com/adaouat/hermes/internal/env"
@@ -84,11 +86,35 @@ func renderInfoPlist(version, binary string) ([]byte, error) {
 		return nil, fmt.Errorf("parsing embedded info.plist template: %w", err)
 	}
 	var buf bytes.Buffer
-	data := struct{ Version, Binary string }{Version: version, Binary: binary}
+	data := struct{ Version, Binary string }{Version: version, Binary: scriptArg(binary)}
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return nil, fmt.Errorf("rendering info.plist: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// shellSafe matches a path the workflow's zsh scripts can run unquoted. Such paths render
+// exactly as they did before quoting existed, so working installs report no drift.
+var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+var xmlText = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+// scriptArg renders binary as one shell word inside the plist's XML text: single-quoted when
+// it has spaces or other shell metacharacters, then XML-escaped.
+func scriptArg(binary string) string {
+	if !shellSafe.MatchString(binary) {
+		binary = "'" + strings.ReplaceAll(binary, "'", `'\''`) + "'"
+	}
+	return xmlText.Replace(binary)
+}
+
+// unquoteScriptArg reverses scriptArg.
+func unquoteScriptArg(arg string) string {
+	arg = html.UnescapeString(arg)
+	if len(arg) >= 2 && arg[0] == '\'' && arg[len(arg)-1] == '\'' {
+		arg = strings.ReplaceAll(arg[1:len(arg)-1], `'\''`, "'")
+	}
+	return arg
 }
 
 // recordedBinaryRe matches the script filter's `{{.Binary}} all` line - the template's only
@@ -100,7 +126,7 @@ func recordedBinary(plist []byte) (string, bool) {
 	if m == nil {
 		return "", false
 	}
-	return string(m[1]), true
+	return unquoteScriptArg(string(m[1])), true
 }
 
 // writeFileAtomically writes data to path via a tmp file in the same directory followed by

@@ -3,8 +3,12 @@ package alfred
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"errors"
+	"html"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -294,6 +298,11 @@ func TestVerify_driftWhenRecordedBinaryPathIsStale(t *testing.T) {
 			wantDrift: "/opt/homebrew/Caskroom/hermes/0.2.0/hermes no longer exists - re-run `hermes install`",
 		},
 		{
+			name:      "recorded path with spaces is unquoted before the existence check",
+			recorded:  "/Users/x/My Tools/hermes",
+			wantDrift: "/Users/x/My Tools/hermes no longer exists - re-run `hermes install`",
+		},
+		{
 			name:      "recorded path exists but is not the stable path",
 			recorded:  "/opt/homebrew/Caskroom/hermes/0.3.0/hermes",
 			existing:  []string{"/opt/homebrew/Caskroom/hermes/0.3.0/hermes"},
@@ -327,5 +336,94 @@ func TestVerify_driftWhenRecordedBinaryPathIsStale(t *testing.T) {
 				t.Errorf("Drift = %q, want exactly one entry containing %q", report.Drift, tc.wantDrift)
 			}
 		})
+	}
+}
+
+func TestRenderInfoPlist_quotesBinaryPathOnlyWhenNeeded(t *testing.T) {
+	tests := []struct {
+		name    string
+		binary  string
+		wantAll string
+	}{
+		{"plain path renders unquoted, as before", "/opt/homebrew/bin/hermes", "<string>/opt/homebrew/bin/hermes all</string>"},
+		{"space", "/Users/x/My Tools/hermes", "<string>'/Users/x/My Tools/hermes' all</string>"},
+		{"single quote", "/Users/x/it's/hermes", `<string>'/Users/x/it'\''s/hermes' all</string>`},
+		{"XML-special characters", "/Users/x/R&D <v2>/hermes", "<string>'/Users/x/R&amp;D &lt;v2&gt;/hermes' all</string>"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			plist, err := renderInfoPlist("3.0.0", tc.binary)
+			if err != nil {
+				t.Fatalf("renderInfoPlist(): %v", err)
+			}
+			if !bytes.Contains(plist, []byte(tc.wantAll)) {
+				t.Errorf("info.plist lacks %s", tc.wantAll)
+			}
+			dec := xml.NewDecoder(bytes.NewReader(plist))
+			dec.Strict = true
+			for {
+				if _, err := dec.Token(); err == io.EOF {
+					break
+				} else if err != nil {
+					t.Fatalf("rendered info.plist is not well-formed XML: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderInfoPlist_scriptRunsBinaryAtPathWithSpecialCharacters(t *testing.T) {
+	if _, err := os.Stat("/bin/sh"); err != nil {
+		t.Skip("no /bin/sh to run the workflow script with")
+	}
+	binary := filepath.Join(t.TempDir(), "My Tools", "it's R&D", "hermes")
+	if err := os.MkdirAll(filepath.Dir(binary), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\necho \"ran $*\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plist, err := renderInfoPlist("3.0.0", binary)
+	if err != nil {
+		t.Fatalf("renderInfoPlist(): %v", err)
+	}
+	m := recordedBinaryRe.FindSubmatch(plist)
+	if m == nil {
+		t.Fatal("no `<binary> all` script in rendered info.plist")
+	}
+	script := html.UnescapeString(string(m[1])) + " all"
+
+	out, err := exec.Command("/bin/sh", "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("sh -c %q: %v\n%s", script, err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "ran all" {
+		t.Errorf("script output = %q, want %q", got, "ran all")
+	}
+}
+
+func TestVerify_noDriftWhenInstalledPathNeedsQuoting(t *testing.T) {
+	const binary = "/Users/x/My Tools/it's/hermes"
+	tmp := t.TempDir()
+	prefsRoot := filepath.Join(tmp, "Alfred.alfredpreferences")
+	target := filepath.Join(prefsRoot, "workflows", bundleID)
+
+	plist, err := renderInfoPlist("3.0.0", binary)
+	if err != nil {
+		t.Fatalf("renderInfoPlist(): %v", err)
+	}
+	fs := iofstest.New(map[string]string{
+		filepath.Join(tmp, "Library/Application Support/Alfred/prefs.json"): fakePrefsJSONFor(prefsRoot),
+		filepath.Join(target, "info.plist"):                                 string(plist),
+	})
+	e := envtest.New(map[string]string{"HOME": tmp})
+
+	report, err := verify("", launcher.InstallOpts{Version: "3.0.0", BinaryPath: binary, FS: fs, Env: e})
+	if err != nil {
+		t.Fatalf("verify(): %v", err)
+	}
+	if len(report.Drift) != 0 {
+		t.Errorf("Drift = %q, want none (recorded path round-trips through quoting)", report.Drift)
 	}
 }
