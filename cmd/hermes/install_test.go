@@ -204,9 +204,46 @@ func brewLayout(t *testing.T, root, version string) (bin, versioned string) {
 	return bin, versioned
 }
 
+// miseLayout mimics a mise install under root: the binary lives in the version-specific
+// installs/github-adaouat-hermes/<version>/hermes, mise's runtime symlink latest points at
+// that version dir, and shims/hermes symlinks to the mise binary (not to hermes).
+func miseLayout(t *testing.T, root, version string) (latest, versioned, shims string) {
+	t.Helper()
+	tool := filepath.Join(root, "installs", "github-adaouat-hermes")
+	versioned = filepath.Join(tool, version, "hermes")
+	if err := os.MkdirAll(filepath.Dir(versioned), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(versioned, []byte("hermes "+version), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(filepath.Join(tool, "latest"))
+	if err := os.Symlink("./"+version, filepath.Join(tool, "latest")); err != nil {
+		t.Fatal(err)
+	}
+
+	misebin := filepath.Join(root, "bin", "mise")
+	shims = filepath.Join(root, "shims")
+	if err := os.MkdirAll(filepath.Dir(misebin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(misebin, []byte("mise"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(shims, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(filepath.Join(shims, "hermes"))
+	if err := os.Symlink(misebin, filepath.Join(shims, "hermes")); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(tool, "latest", "hermes"), versioned, shims
+}
+
 func TestStableBinaryPath(t *testing.T) {
 	root := t.TempDir()
 	bin, versioned := brewLayout(t, root, "0.2.0")
+	miseLatest, miseVersioned, miseShims := miseLayout(t, filepath.Join(root, "mise"), "0.2.0")
 
 	other := filepath.Join(root, "other", "hermes")
 	if err := os.MkdirAll(filepath.Dir(other), 0o755); err != nil {
@@ -236,6 +273,9 @@ func TestStableBinaryPath(t *testing.T) {
 		{"relative PATH entry is ignored", bin, []string{"bin"}, bin},
 		{"not on PATH falls back to the invoked path, unresolved", bin, nil, bin},
 		{"plain binary on PATH", plain, []string{filepath.Dir(plain)}, plain},
+		{"mise shim on PATH resolves via the latest runtime symlink", miseVersioned, []string{miseShims}, miseLatest},
+		{"mise activate puts the versioned dir on PATH", miseVersioned, []string{filepath.Dir(miseVersioned)}, miseLatest},
+		{"invoked via mise latest symlink", miseLatest, nil, miseLatest},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -267,6 +307,33 @@ func TestStableBinaryPath_survivesBrewUpgrade(t *testing.T) {
 	resolved, err := filepath.EvalSymlinks(recorded)
 	if err != nil {
 		t.Fatalf("recorded path %q dangles after upgrade: %v", recorded, err)
+	}
+	wantResolved, err := filepath.EvalSymlinks(newVersioned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != wantResolved {
+		t.Errorf("recorded path %q resolves to %q, want the upgraded %q", recorded, resolved, wantResolved)
+	}
+}
+
+func TestStableBinaryPath_survivesMiseUpgradeAndPrune(t *testing.T) {
+	root := t.TempDir()
+	_, oldVersioned, shims := miseLayout(t, root, "0.2.0")
+
+	recorded, err := stableBinaryPath(oldVersioned, []string{shims})
+	if err != nil {
+		t.Fatalf("stableBinaryPath(): %v", err)
+	}
+
+	_, newVersioned, _ := miseLayout(t, root, "0.2.1")
+	if err := os.RemoveAll(filepath.Dir(oldVersioned)); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := filepath.EvalSymlinks(recorded)
+	if err != nil {
+		t.Fatalf("recorded path %q dangles after mise upgrade + prune: %v", recorded, err)
 	}
 	wantResolved, err := filepath.EvalSymlinks(newVersioned)
 	if err != nil {

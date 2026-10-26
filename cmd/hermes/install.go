@@ -108,9 +108,10 @@ func mapInstallErr(err error) error {
 }
 
 // stableBinaryPath returns the path install records for the running binary exe: the first
-// hermes on path that is the same file as exe, else exe as invoked. Never the
-// symlink-resolved target - under Homebrew that is Caskroom/hermes/<version>/hermes, which
-// `brew upgrade` deletes, whereas bin/hermes survives it (ADR-0009).
+// hermes on path that is the same file as exe, else exe as invoked, routed through a
+// `latest` symlink when one leads to the same file. Never the symlink-resolved target -
+// under Homebrew that is Caskroom/hermes/<version>/hermes, which `brew upgrade` deletes,
+// whereas bin/hermes survives it (ADR-0009).
 func stableBinaryPath(exe string, path []string) (string, error) {
 	exeInfo, err := os.Stat(exe)
 	if err != nil {
@@ -123,12 +124,37 @@ func stableBinaryPath(exe string, path []string) (string, error) {
 		candidate := filepath.Join(dir, filepath.Base(exe))
 		info, err := os.Stat(candidate)
 		if err == nil && os.SameFile(exeInfo, info) {
-			return candidate, nil
+			return viaLatestLink(candidate, exeInfo), nil
 		}
 	}
 	abs, err := filepath.Abs(exe)
 	if err != nil {
 		return "", fmt.Errorf("absolute path of %s: %w", exe, err)
 	}
-	return abs, nil
+	return viaLatestLink(abs, exeInfo), nil
+}
+
+// viaLatestLink rewrites p through a `latest` symlink beside one of its ancestor dirs when
+// that leads to the same file. This is mise's runtime symlink installs/<tool>/latest, which
+// mise repoints on every install and uninstall. Its shim on $PATH is the mise binary, not
+// hermes, so the $PATH match alone only finds installs/<tool>/<version> (ADR-0009).
+func viaLatestLink(p string, info os.FileInfo) string {
+	for dir := filepath.Dir(p); filepath.Dir(dir) != dir; dir = filepath.Dir(dir) {
+		latest := filepath.Join(filepath.Dir(dir), "latest")
+		if latest == dir {
+			return p
+		}
+		if li, err := os.Lstat(latest); err != nil || li.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			continue
+		}
+		candidate := filepath.Join(latest, rel)
+		if ci, err := os.Stat(candidate); err == nil && os.SameFile(info, ci) {
+			return candidate
+		}
+	}
+	return p
 }
