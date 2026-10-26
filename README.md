@@ -8,11 +8,15 @@ CLI, on [`github.com/adaouat/forge`](https://github.com/adaouat/forge).
 
 ## Install
 
-### Homebrew
+### Homebrew (recommended)
 
 ```bash
 brew install --cask adaouat/tap/hermes
 ```
+
+The simplest choice for the Alfred workflow: `hermes install` records the stable
+`$(brew --prefix)/bin/hermes`, which survives `brew upgrade`, and the cask clears the
+Gatekeeper quarantine flag for you.
 
 ### `go install`
 
@@ -33,6 +37,10 @@ Or declare it in your `.mise.toml` / `mise.toml`:
 "github:adaouat/hermes" = "latest"
 ```
 
+The Alfred workflow runs hermes through mise's `installs/github-adaouat-hermes/latest` link,
+so it survives `mise upgrade` and `mise prune`. It runs the newest *installed* version,
+though, even if you pinned an older one.
+
 ### Prebuilt binary
 
 Download the raw binary for your platform from the
@@ -44,8 +52,12 @@ verification.
 # example: macOS arm64 — replace <version> with the release tag
 curl -L -o hermes "https://github.com/adaouat/hermes/releases/download/<version>/hermes_<version>_darwin_arm64"
 chmod +x hermes
-./hermes --version
+mkdir -p ~/.local/bin && mv hermes ~/.local/bin/   # a stable directory on your $PATH
+hermes --version
 ```
+
+Move the binary to its permanent location *before* running `hermes install`. The workflow
+records the path hermes runs from, so installing from `~/Downloads` ties it to that file.
 
 > **macOS / Gatekeeper:** the binary isn't codesigned yet (`docs/adr/0001-go-rewrite-on-forge.md`
 > A6). If it's blocked after download, clear the quarantine flag:
@@ -55,7 +67,8 @@ chmod +x hermes
 
 hermes prints a one-line upgrade hint when a newer release exists (skipped for JSON-output
 commands, so it never lands in a launcher's parsed output); re-run your install method
-(`mise upgrade hermes`, `go install …@latest`, or the curl command) to upgrade. Set
+(`brew upgrade hermes`, `mise upgrade hermes`, `go install …@latest`, or the curl command)
+to upgrade. Set
 `HERMES_CHECK_UPDATE=false` to disable the check entirely.
 
 ## Usage
@@ -79,9 +92,15 @@ falls back to `generic` — launcher-neutral JSON, useful for scripts and debugg
 hermes install --launcher alfred
 ```
 
-Writes the Alfred workflow (`info.plist` + icon) into your Alfred preferences, pointing at
-the resolved `hermes` binary — it never copies or moves the binary itself. Use `--check` for
-a non-mutating drift report, or `--verify` to confirm after installing.
+Writes the Alfred workflow (`info.plist` + icon) into your Alfred preferences. The workflow
+points at a stable path to your `hermes` binary (see [Install](#install)), never a
+version-specific one, so it keeps working across upgrades. hermes never copies or moves the
+binary itself. Use `--check` for a non-mutating drift report, or `--verify` to confirm after
+installing.
+
+> **Upgrading from 0.2.1 or earlier:** those versions recorded a version-specific path that
+> `brew upgrade` or `mise prune` deletes. Run `hermes install --launcher alfred` once more.
+> `hermes install --check` reports the stale path if you're affected.
 
 ### Raycast
 
